@@ -137,6 +137,21 @@ input, select, textarea { font: inherit; color: inherit; }
   border-radius: 3px;
   transition: width 0.2s;
 }
+.progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.progress-pct {
+  color: var(--accent);
+  font-weight: 700;
+  min-width: 42px;
+  text-align: right;
+}
+.progress-sep  { color: var(--text-muted); }
+.progress-timer { color: var(--text-dim); min-width: 64px; }
 .progress-file {
   font-family: var(--mono);
   font-size: 11px;

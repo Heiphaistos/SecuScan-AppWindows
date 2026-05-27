@@ -50,7 +50,13 @@
     <div class="scan-progress hidden" id="scanProgress">
       <div class="progress-header">
         <span class="progress-label">Scanning…</span>
-        <span class="progress-count" id="progressCount">0 / 0</span>
+        <div class="progress-meta">
+          <span class="progress-pct" id="progressPct">0%</span>
+          <span class="progress-sep">·</span>
+          <span class="progress-count" id="progressCount">0 / 0</span>
+          <span class="progress-sep">·</span>
+          <span class="progress-timer" id="elapsedTime">00:00:00</span>
+        </div>
       </div>
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>

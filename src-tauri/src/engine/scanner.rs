@@ -44,28 +44,47 @@ fn read_file_capped(path: &Path, max_bytes: usize) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
+// ─── Max bytes fed to regex scanners (prevent hang on huge text files) ────────
+/// 2 MB cap for any regex-based scanner. Secrets/vulns are almost always
+/// in the first kilobytes of a file; capping avoids catastrophic backtracking
+/// on multi-megabyte .txt, .log, .csv, etc.
+const MAX_REGEX_BYTES: usize = 2 * 1024 * 1024;
+
+#[inline]
+fn cap(data: &[u8]) -> &[u8] {
+    if data.len() > MAX_REGEX_BYTES { &data[..MAX_REGEX_BYTES] } else { data }
+}
+
 // ─── Dispatch to appropriate parser ──────────────────────────────────────────
 
 fn dispatch(path: &Path, data: &[u8], cfg: &ScanConfig) -> Vec<Vulnerability> {
-    let ext = file_extension(path);
+    let ext = file_extension(path).to_lowercase();
+    let ext = ext.as_str();
 
     if sast::handles_extension(ext) {
-        return sast::scan_source(path, data);
+        return sast::scan_source(path, cap(data));
     }
     if script::handles_extension(ext) {
-        return script::scan_script(path, data);
+        return script::scan_script(path, cap(data));
     }
     if config::handles_extension(ext) {
-        return config::scan_config(path, data);
+        return config::scan_config(path, cap(data));
     }
     if cfg.scan_executables && binary::handles_extension(ext) {
-        return binary::scan_binary(path, data);
+        return binary::scan_binary(path, data); // binary scanner handles its own limits
     }
 
-    // Fallback: apply config scanner to any unknown text file
-    if data.iter().filter(|&&b| b == 0).count() < data.len() / 20 {
-        // Probably text (< 5% null bytes)
-        return config::scan_config(path, data);
+    // Fallback: secret scan on unknown text files, but:
+    //   1. Skip .txt, .log, .csv, .md (too generic, low signal, high false-positive)
+    //   2. Cap at 512 KB
+    //   3. Only if < 5% null bytes (is text)
+    let skip_fallback = matches!(ext, "txt" | "log" | "csv" | "md" | "rst" | "nfo" |
+                                       "rtf" | "out" | "tmp" | "dat" | "cache" |
+                                       "lock" | "sum" | "manifest");
+    if !skip_fallback && data.iter().filter(|&&b| b == 0).count() < data.len() / 20 {
+        const FALLBACK_CAP: usize = 512 * 1024;
+        let slice = if data.len() > FALLBACK_CAP { &data[..FALLBACK_CAP] } else { data };
+        return config::scan_config(path, slice);
     }
 
     vec![]

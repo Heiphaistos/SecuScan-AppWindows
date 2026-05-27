@@ -10,11 +10,13 @@ const { open }    = window.__TAURI__.dialog;
 const { writeTextFile, BaseDirectory } = window.__TAURI__.fs;
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let currentScan    = null;
-let activeVulnId   = null;
-let activeFilter   = 'all';
-let searchQuery    = '';
+let currentScan      = null;
+let activeVulnId     = null;
+let activeFilter     = 'all';
+let searchQuery      = '';
 let progressUnlisten = null;
+let scanStartTime    = null;
+let timerInterval    = null;
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -106,9 +108,27 @@ function setupFilters() {
   });
 }
 
+// ─── Timer ────────────────────────────────────────────────────────────────────
+function startTimer() {
+  scanStartTime = Date.now();
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - scanStartTime) / 1000);
+    const h = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+    const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    $('elapsedTime').textContent = `${h}:${m}:${s}`;
+  }, 500);
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
 // ─── Scan ─────────────────────────────────────────────────────────────────────
 async function startScan(path) {
   showProgress();
+  startTimer();
 
   // Subscribe to progress events
   if (progressUnlisten) { progressUnlisten(); progressUnlisten = null; }
@@ -118,8 +138,10 @@ async function startScan(path) {
 
   try {
     currentScan = await invoke('start_scan', { path, config });
+    stopTimer();
     showResults();
   } catch (err) {
+    stopTimer();
     toast(`Scan error: ${err}`, true);
     resetToScanZone();
   } finally {
@@ -139,8 +161,9 @@ function getScanConfig() {
 
 function updateProgress(p) {
   const pct = p.total > 0 ? Math.round((p.scanned / p.total) * 100) : 0;
-  progressFill.style.width   = `${pct}%`;
-  progressCount.textContent  = `${p.scanned} / ${p.total}`;
+  progressFill.style.width      = `${pct}%`;
+  $('progressPct').textContent  = `${pct}%`;
+  progressCount.textContent     = `${p.scanned} / ${p.total}`;
   progressFile.textContent   = p.current_file || '';
 }
 
@@ -173,13 +196,16 @@ function showResults() {
 
 function resetToScanZone() {
   currentScan = null; activeVulnId = null;
+  stopTimer();
   dropArea.classList.remove('hidden');
   scanProgress.classList.add('hidden');
   statsRow.classList.add('hidden');
   filterBar.classList.add('hidden');
   resultsContainer.classList.add('hidden');
-  progressFill.style.width = '0%';
-  progressCount.textContent = '0 / 0';
+  progressFill.style.width     = '0%';
+  $('progressPct').textContent = '0%';
+  $('elapsedTime').textContent = '00:00:00';
+  progressCount.textContent    = '0 / 0';
   progressFile.textContent  = 'Initializing…';
   vulnList.innerHTML = '';
   showDetailEmpty();
