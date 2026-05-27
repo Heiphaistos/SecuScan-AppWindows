@@ -148,9 +148,16 @@ fn get_rules() -> &'static Vec<Rule> {
 }
 
 pub fn scan_script(path: &Path, content: &[u8]) -> Vec<Vulnerability> {
-    let text = match std::str::from_utf8(content) {
+    let raw = match std::str::from_utf8(content) {
         Ok(s)  => s,
         Err(_) => return vec![],
+    };
+
+    // Drop lines >4 KB — same protection as sast scanner
+    let scratch: String;
+    let text: &str = match super::filter_long_lines(raw, 4096) {
+        Some(s) => { scratch = s; &scratch }
+        None    => raw,
     };
 
     let lines: Vec<&str> = text.lines().collect();

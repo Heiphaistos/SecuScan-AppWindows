@@ -183,9 +183,17 @@ fn get_rules() -> &'static Vec<Rule> {
 // ─── Scanner ──────────────────────────────────────────────────────────────────
 
 pub fn scan_source(path: &Path, content: &[u8]) -> Vec<Vulnerability> {
-    let text = match std::str::from_utf8(content) {
+    let raw = match std::str::from_utf8(content) {
         Ok(s)  => s,
         Err(_) => return vec![],
+    };
+
+    // Drop lines >4 KB — generated/minified files have single lines of hundreds of KB
+    // and cause catastrophic regex backtracking even within the total byte cap.
+    let scratch: String;
+    let text: &str = match super::filter_long_lines(raw, 4096) {
+        Some(s) => { scratch = s; &scratch }
+        None    => raw,
     };
 
     let lines: Vec<&str> = text.lines().collect();

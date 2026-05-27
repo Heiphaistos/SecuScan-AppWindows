@@ -10,6 +10,22 @@ pub trait Parser: Send + Sync {
     fn scan(&self, path: &std::path::Path, content: &[u8]) -> Vec<Vulnerability>;
 }
 
+/// Drop lines longer than `max_len` bytes before regex scanning.
+/// Protects against catastrophic backtracking on generated/minified code
+/// (single lines of hundreds of KB trigger O(n²) backtracking in some patterns).
+pub fn filter_long_lines(text: &str, max_len: usize) -> Option<String> {
+    if text.lines().any(|l| l.len() > max_len) {
+        Some(
+            text.lines()
+                .filter(|l| l.len() <= max_len)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    } else {
+        None // no allocation when not needed
+    }
+}
+
 /// Extract context lines around a match.
 pub fn context_snippet(lines: &[&str], line_idx: usize, context: usize) -> String {
     let start = line_idx.saturating_sub(context);

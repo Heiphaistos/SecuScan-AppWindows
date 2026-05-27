@@ -25,7 +25,13 @@ fn should_skip(entry: &DirEntry, cfg: &ScanConfig) -> bool {
     if cfg.skip_node_modules && name == "node_modules" {
         return true;
     }
-    matches!(name.as_ref(), "target" | "dist" | "build" | ".idea" | ".vs" | "__pycache__")
+    // Always skip: build artifacts + IDE + dependency vendors
+    if matches!(name.as_ref(), "target" | "dist" | "build" | ".idea" | ".vs" | "__pycache__" |
+                               "vendor"  | ".cargo" | "Pods"  | "Carthage" | "Packages" |
+                               ".gradle" | ".m2"    | "bower_components" | "jspm_packages") {
+        return true;
+    }
+    false
 }
 
 fn file_extension(path: &Path) -> &str {
@@ -48,7 +54,7 @@ fn read_file_capped(path: &Path, max_bytes: usize) -> std::io::Result<Vec<u8>> {
 /// 2 MB cap for any regex-based scanner. Secrets/vulns are almost always
 /// in the first kilobytes of a file; capping avoids catastrophic backtracking
 /// on multi-megabyte .txt, .log, .csv, etc.
-const MAX_REGEX_BYTES: usize = 2 * 1024 * 1024;
+const MAX_REGEX_BYTES: usize = 512 * 1024; // 512 KB — combined with per-line filter keeps regex fast
 
 #[inline]
 fn cap(data: &[u8]) -> &[u8] {
