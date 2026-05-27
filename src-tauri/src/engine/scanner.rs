@@ -210,12 +210,139 @@ pub async fn run_scan(
     // Sort by severity (Critical first)
     result.vulnerabilities.sort_by(|a, b| b.severity.score().cmp(&a.severity.score()));
 
+    // Apply false-positive hints (heuristics)
+    apply_fp_hints(&mut result.vulnerabilities);
+
     result.finalize();
 
     // Emit completion
     let _ = app.emit("scan:complete", &result.stats);
 
     Ok(result)
+}
+
+// ─── False-positive heuristics ───────────────────────────────────────────────
+
+fn apply_fp_hints(vulns: &mut Vec<crate::models::Vulnerability>) {
+    for v in vulns.iter_mut() {
+        v.fp_hint = detect_fp(&v.file_path, v.matched_pattern.as_deref(), &v.category);
+    }
+}
+
+fn detect_fp(
+    path:     &str,
+    matched:  Option<&str>,
+    category: &crate::models::VulnCategory,
+) -> Option<String> {
+    use crate::models::VulnCategory::*;
+
+    let path_l    = path.to_lowercase();
+    let matched_l = matched.unwrap_or("").to_lowercase();
+
+    // ── 1. Test / example / mock paths ──────────────────────────────────────
+    let path_segs: Vec<&str> = path.split(['/', '\\']).collect();
+    let test_dirs = ["test", "tests", "spec", "specs", "mock", "mocks",
+                     "fixture", "fixtures", "example", "examples",
+                     "sample", "samples", "demo", "__tests__"];
+    for seg in &path_segs {
+        let s = seg.to_lowercase();
+        if test_dirs.iter().any(|t| s == *t || s.starts_with(&format!("{}_", t)) || s.ends_with(&format!("_{}", t))) {
+            return Some(format!(
+                "Possible faux positif — fichier dans un contexte test/exemple (dossier «{}»). \
+                 Vérifier si ce code est exécuté en production.",
+                seg
+            ));
+        }
+    }
+    // file name patterns
+    if path_l.ends_with("_test.rs") || path_l.ends_with("_test.go") ||
+       path_l.ends_with(".test.js") || path_l.ends_with(".spec.ts") ||
+       path_l.ends_with(".spec.js") {
+        return Some(
+            "Possible faux positif — fichier de test (nom contient _test/.test/.spec). \
+             Vérifier si ce code est exécuté en production.".to_string()
+        );
+    }
+
+    // ── 2. Placeholder / exemple values ─────────────────────────────────────
+    let placeholders = ["placeholder", "your_api", "your-api", "your_key", "your-key",
+                        "changeme", "replace_me", "insert_key", "insert_secret",
+                        "example.com", "example_", "_example", "fake_", "dummy_",
+                        "sample_key", "demo_key", "test_key", "test_secret",
+                        "xxxx", "1234567890abcdef", "abcdefghijklmnop"];
+    for p in &placeholders {
+        if matched_l.contains(p) {
+            return Some(format!(
+                "Possible faux positif — valeur détectée ressemble à un placeholder/exemple (\"{}\"). \
+                 Peu probable que ce soit une vraie fuite.",
+                &matched_l[..matched_l.len().min(40)]
+            ));
+        }
+    }
+
+    // ── 3. WeakCrypto — checksums vs passwords ───────────────────────────────
+    if matches!(category, WeakCrypto) {
+        if matched_l.contains("md5") || matched_l.contains("sha1") || matched_l.contains("sha-1") {
+            return Some(
+                "Possible faux positif — MD5/SHA-1 fréquemment utilisés pour \
+                 checksums de fichiers ou déduplication (usage non-sécuritaire légitime). \
+                 Vérifier que ce n'est pas utilisé pour hacher des mots de passe.".to_string()
+            );
+        }
+        if matched_l.contains("random") {
+            return Some(
+                "Possible faux positif — random() peut être utilisé à des fins \
+                 non-sécuritaires (simulation, jeux, tri aléatoire). \
+                 Problème uniquement si une valeur imprévisible est requise (token, clé).".to_string()
+            );
+        }
+    }
+
+    // ── 4. CommandInjection en Rust/Go/C (outils système) ───────────────────
+    if matches!(category, CommandInjection) {
+        let ext = path_l.rsplit('.').next().unwrap_or("");
+        if matches!(ext, "rs" | "go" | "c" | "cpp" | "cs") {
+            return Some(
+                "Possible faux positif — les outils système en Rust/Go/C# utilisent \
+                 légitimement l'exécution de processus. Vérifier si les paramètres \
+                 passés à la commande peuvent être contrôlés par un attaquant.".to_string()
+            );
+        }
+    }
+
+    // ── 5. CORS wildcard sur ressources statiques ────────────────────────────
+    if matches!(category, CorsMisconfiguration) {
+        if path_l.contains("nginx") || path_l.contains("static") ||
+           path_l.contains("cdn")   || path_l.contains("assets") {
+            return Some(
+                "Possible faux positif — CORS wildcard (*) acceptable pour les ressources \
+                 statiques publiques (fonts, images, JS/CSS). \
+                 Problématique uniquement pour les endpoints API authentifiés.".to_string()
+            );
+        }
+    }
+
+    // ── 6. HighEntropyString — hashes d'assets / fingerprints de build ──────
+    if matches!(category, HighEntropyString) {
+        if path_l.ends_with(".lock") || path_l.ends_with(".sum") ||
+           path_l.contains("package-lock") || path_l.contains("yarn.lock") ||
+           path_l.contains("cargo.lock") {
+            return Some(
+                "Possible faux positif — fichier de lock contenant des hashes \
+                 d'intégrité de dépendances (non-secrets).".to_string()
+            );
+        }
+        // All-hex string of 40+ chars = SHA1 commit hash or asset fingerprint
+        let hex_only: bool = matched_l.chars().all(|c| c.is_ascii_hexdigit() || c == '"' || c == '\'');
+        if hex_only && matched_l.len() >= 40 {
+            return Some(
+                "Possible faux positif — chaîne hexadécimale longue pouvant être \
+                 un hash de commit, fingerprint d'asset ou checksum (non-secret).".to_string()
+            );
+        }
+    }
+
+    None
 }
 
 // ─── Append to log file ───────────────────────────────────────────────────────

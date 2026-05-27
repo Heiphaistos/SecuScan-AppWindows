@@ -119,6 +119,9 @@ pub struct Vulnerability {
     pub cwe_id:          Option<String>,
     pub ai_explanation:  Option<String>,
     pub ai_fix:          Option<String>,
+    /// Non-null = scanner thinks this may be a false positive.
+    /// Contains a short human-readable reason.
+    pub fp_hint:         Option<String>,
 }
 
 impl Vulnerability {
@@ -146,6 +149,7 @@ impl Vulnerability {
             cwe_id:          cwe,
             ai_explanation:  None,
             ai_fix:          None,
+            fp_hint:         None,
         }
     }
 

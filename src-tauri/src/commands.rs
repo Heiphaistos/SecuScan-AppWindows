@@ -132,6 +132,36 @@ pub fn export_markdown(state: State<'_, AppState>) -> Result<String, String> {
     Ok(export::to_markdown(result))
 }
 
+#[tauri::command]
+pub fn export_txt(state: State<'_, AppState>) -> Result<String, String> {
+    let scan = state.current_scan.lock().unwrap();
+    let result = scan.as_ref().ok_or("No scan result to export")?;
+    Ok(export::to_txt(result))
+}
+
+#[tauri::command]
+pub fn export_html(state: State<'_, AppState>) -> Result<String, String> {
+    let scan = state.current_scan.lock().unwrap();
+    let result = scan.as_ref().ok_or("No scan result to export")?;
+    Ok(export::to_html(result))
+}
+
+/// Save report directly to disk (called after user picks path via save dialog).
+#[tauri::command]
+pub fn save_report_to_file(format: String, path: String, state: State<'_, AppState>) -> Result<(), String> {
+    let scan = state.current_scan.lock().unwrap();
+    let result = scan.as_ref().ok_or("No scan result to export")?;
+    let content = match format.as_str() {
+        "json" => export::to_json(result)?,
+        "csv"  => export::to_csv(result),
+        "md"   => export::to_markdown(result),
+        "txt"  => export::to_txt(result),
+        "html" => export::to_html(result),
+        _      => return Err(format!("Unknown format: {format}")),
+    };
+    std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
+}
+
 // ─── Key management commands ──────────────────────────────────────────────────
 
 #[tauri::command]

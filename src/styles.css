@@ -301,9 +301,10 @@ input, select, textarea { font: inherit; color: inherit; }
   gap: 4px;
   padding-right: 4px;
 }
-.vuln-list::-webkit-scrollbar { width: 4px; }
-.vuln-list::-webkit-scrollbar-track  { background: transparent; }
-.vuln-list::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
+.vuln-list::-webkit-scrollbar { width: 8px; }
+.vuln-list::-webkit-scrollbar-track  { background: var(--surface); border-radius: 4px; }
+.vuln-list::-webkit-scrollbar-thumb  { background: var(--border-glow); border-radius: 4px; }
+.vuln-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 .vuln-item {
   background: var(--surface);
@@ -360,8 +361,10 @@ input, select, textarea { font: inherit; color: inherit; }
   border-radius: var(--radius-lg);
   min-width: 0;
 }
-.detail-panel::-webkit-scrollbar { width: 4px; }
-.detail-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.detail-panel::-webkit-scrollbar { width: 8px; }
+.detail-panel::-webkit-scrollbar-track  { background: var(--surface); border-radius: 4px; }
+.detail-panel::-webkit-scrollbar-thumb  { background: var(--border-glow); border-radius: 4px; }
+.detail-panel::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 .detail-empty {
   height: 100%;
   display: flex;
@@ -562,6 +565,33 @@ input, select, textarea { font: inherit; color: inherit; }
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } }
 
 /* ─── Scrollbar global ──────────────────────────────────────────────────────── */
-::-webkit-scrollbar       { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar       { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--surface); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ─── False-positive indicators ─────────────────────────────────────────────── */
+.fp-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: #f5c518;
+  background: rgba(245, 197, 24, 0.12);
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.fp-hint-box {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(245, 197, 24, 0.08);
+  border-left: 3px solid #f5c518;
+  border-radius: 0 6px 6px 0;
+  font-size: 12px;
+  color: #f5c518;
+  line-height: 1.5;
+}
+.fp-hint-box.hidden { display: none; }

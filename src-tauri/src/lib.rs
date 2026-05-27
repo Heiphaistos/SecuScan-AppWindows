@@ -29,6 +29,9 @@ pub fn run() {
             commands::export_json,
             commands::export_csv,
             commands::export_markdown,
+            commands::export_txt,
+            commands::export_html,
+            commands::save_report_to_file,
             // Keys
             commands::save_api_key,
             commands::delete_api_key,

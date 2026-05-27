@@ -6,7 +6,7 @@
 // ─── Tauri bindings ────────────────────────────────────────────────────────────
 const { invoke }  = window.__TAURI__.core;
 const { listen }  = window.__TAURI__.event;
-const { open }    = window.__TAURI__.dialog;
+const { open, save } = window.__TAURI__.dialog;
 const { writeTextFile, BaseDirectory } = window.__TAURI__.fs;
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -87,6 +87,8 @@ function setupButtons() {
   $('btnExportJson').addEventListener('click', () => exportReport('json'));
   $('btnExportCsv').addEventListener('click', () => exportReport('csv'));
   $('btnExportMd').addEventListener('click', () => exportReport('md'));
+  $('btnExportTxt').addEventListener('click', () => exportReport('txt'));
+  $('btnExportHtml').addEventListener('click', () => exportReport('html'));
 
   $('btnGetFix').addEventListener('click', requestAiFix);
   $('btnCopyPrompt').addEventListener('click', copyAiPrompt);
@@ -246,7 +248,10 @@ function renderVulnList() {
         <span class="sev-badge ${v.severity}">${v.severity.toUpperCase()}</span>
       </div>
       <div class="vuln-item-file">${escHtml(fileShort)}${line}</div>
-      <div class="vuln-item-meta">${v.cwe_id || ''}</div>
+      <div class="vuln-item-meta">
+        ${v.cwe_id || ''}
+        ${v.fp_hint ? '<span class="fp-badge" title="' + escHtml(v.fp_hint) + '">⚠️ FP?</span>' : ''}
+      </div>
     `;
 
     el.addEventListener('click', () => selectVuln(v));
@@ -275,6 +280,15 @@ function selectVuln(v) {
   $('detailDesc').textContent  = v.description;
   $('detailSnippet').textContent = v.code_snippet || v.matched_pattern || '(no code context)';
   $('detailFix').textContent   = v.remediation;
+
+  // False-positive hint
+  const fpBox = $('detailFpHint');
+  if (v.fp_hint) {
+    fpBox.textContent = '⚠️ ' + v.fp_hint;
+    fpBox.classList.remove('hidden');
+  } else {
+    fpBox.classList.add('hidden');
+  }
 
   // Reset AI panel
   $('aiResult').classList.add('hidden');
@@ -329,33 +343,29 @@ async function copyAiPrompt() {
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
+const EXPORT_META = {
+  json: { cmd: 'export_json',     ext: 'json', label: 'JSON',     filter: 'JSON Files'     },
+  csv:  { cmd: 'export_csv',      ext: 'csv',  label: 'CSV',      filter: 'CSV Files'      },
+  md:   { cmd: 'export_markdown', ext: 'md',   label: 'Markdown', filter: 'Markdown Files' },
+  txt:  { cmd: 'export_txt',      ext: 'txt',  label: 'Text',     filter: 'Text Files'     },
+  html: { cmd: 'export_html',     ext: 'html', label: 'HTML',     filter: 'HTML Files'     },
+};
+
 async function exportReport(format) {
   if (!currentScan) return;
+  const meta = EXPORT_META[format];
+  if (!meta) return;
 
   try {
-    let content, ext, mime;
+    const date     = new Date().toISOString().slice(0, 10);
+    const filePath = await save({
+      defaultPath: `secuscan-report-${date}.${meta.ext}`,
+      filters: [{ name: meta.filter, extensions: [meta.ext] }],
+    });
+    if (!filePath) return; // user cancelled
 
-    if (format === 'json') {
-      content = await invoke('export_json');
-      ext = 'json'; mime = 'application/json';
-    } else if (format === 'csv') {
-      content = await invoke('export_csv');
-      ext = 'csv'; mime = 'text/csv';
-    } else {
-      content = await invoke('export_markdown');
-      ext = 'md'; mime = 'text/markdown';
-    }
-
-    // Save via browser download API
-    const blob = new Blob([content], { type: mime });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const date = new Date().toISOString().slice(0, 10);
-    a.href     = url;
-    a.download = `secuscan-report-${date}.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast(`Report exported as .${ext}`);
+    await invoke('save_report_to_file', { format, path: filePath });
+    toast(`Rapport sauvegardé : ${filePath.split(/[\\/]/).pop()}`);
   } catch (err) {
     toast(`Export error: ${err}`, true);
   }

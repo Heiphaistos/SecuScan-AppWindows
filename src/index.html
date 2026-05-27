@@ -98,6 +98,8 @@
         <button class="btn-export" id="btnExportJson">JSON</button>
         <button class="btn-export" id="btnExportCsv">CSV</button>
         <button class="btn-export" id="btnExportMd">Markdown</button>
+        <button class="btn-export" id="btnExportTxt">TXT</button>
+        <button class="btn-export" id="btnExportHtml">HTML</button>
       </div>
     </div>
   </section>
@@ -147,6 +149,9 @@
           <h4>Remediation</h4>
           <p class="detail-fix" id="detailFix"></p>
         </div>
+
+        <!-- False-positive hint -->
+        <div class="fp-hint-box hidden" id="detailFpHint"></div>
 
         <!-- AI Fix Section -->
         <div class="ai-section" id="aiSection">
