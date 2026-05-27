@@ -96,6 +96,31 @@ fn dispatch(path: &Path, data: &[u8], cfg: &ScanConfig) -> Vec<Vulnerability> {
     vec![]
 }
 
+// ─── Dispatch with 10-second hard timeout ────────────────────────────────────
+// If a parser hangs (regex catastrophic backtracking, YARA infinite loop, etc.)
+// the file is skipped after 10 s so the overall scan can continue.
+// The spawned thread may keep running until process exit — acceptable for a
+// desktop tool where stuck threads are cleaned up on close.
+
+fn dispatch_timed(path: PathBuf, data: Vec<u8>, cfg: ScanConfig) -> Vec<Vulnerability> {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let (tx, rx) = mpsc::channel::<Vec<Vulnerability>>();
+    std::thread::spawn(move || {
+        let result = dispatch(&path, &data, &cfg);
+        let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(Duration::from_secs(10)) {
+        Ok(vulns) => vulns,
+        Err(_) => {
+            log::warn!("File scan timed out — skipped");
+            vec![]
+        }
+    }
+}
+
 // ─── Public entry ─────────────────────────────────────────────────────────────
 
 pub async fn run_scan(
@@ -154,7 +179,8 @@ pub async fn run_scan(
             // Read file
             match read_file_capped(path, max_bytes) {
                 Ok(data) => {
-                    let vulns = dispatch(path, &data, &cfg_clone);
+                    // dispatch_timed: 10 s hard timeout per file — skips stuck parsers
+                    let vulns = dispatch_timed(path.clone(), data, cfg_clone.clone());
                     (vulns, None)
                 }
                 Err(e) => {
