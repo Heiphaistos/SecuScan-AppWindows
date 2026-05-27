@@ -1,0 +1,26 @@
+# Secrets
+.env
+*.env.local
+secrets/
+
+# Logs
+.logs/
+*.log
+secuscan.log
+
+# Build artifacts
+src-tauri/target/
+dist/
+node_modules/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Tauri
+src-tauri/gen/

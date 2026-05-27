@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';" />
+  <title>SecuScan AI</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
+<header class="app-header">
+  <div class="header-left">
+    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z"/>
+      <path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <span class="logo-text">SecuScan<span class="logo-ai">AI</span></span>
+      <span class="version-badge" id="appVersion">v1.0.0</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn-icon" id="btnSettings" title="API Keys & Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- ── MAIN ─────────────────────────────────────────────────────────────────── -->
+<main class="app-main">
+
+  <!-- Drop / Scan Zone -->
+  <section class="scan-zone" id="scanZone">
+    <div class="drop-area" id="dropArea">
+      <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+        <path d="M12 11v5M9.5 13.5l2.5-2.5 2.5 2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p class="drop-title">Drop a folder to scan</p>
+      <p class="drop-sub">or</p>
+      <button class="btn-primary" id="btnPickFolder">Browse folder</button>
+    </div>
+
+    <!-- Progress (hidden initially) -->
+    <div class="scan-progress hidden" id="scanProgress">
+      <div class="progress-header">
+        <span class="progress-label">Scanning…</span>
+        <span class="progress-count" id="progressCount">0 / 0</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+      </div>
+      <p class="progress-file" id="progressFile">Initializing…</p>
+      <button class="btn-danger-sm" id="btnCancel">Cancel</button>
+    </div>
+  </section>
+
+  <!-- Stats cards (hidden until scan done) -->
+  <section class="stats-row hidden" id="statsRow">
+    <div class="stat-card critical" id="statCritical">
+      <span class="stat-num" id="numCritical">0</span>
+      <span class="stat-label">Critical</span>
+    </div>
+    <div class="stat-card high" id="statHigh">
+      <span class="stat-num" id="numHigh">0</span>
+      <span class="stat-label">High</span>
+    </div>
+    <div class="stat-card medium" id="statMedium">
+      <span class="stat-num" id="numMedium">0</span>
+      <span class="stat-label">Medium</span>
+    </div>
+    <div class="stat-card low" id="statLow">
+      <span class="stat-num" id="numLow">0</span>
+      <span class="stat-label">Low</span>
+    </div>
+    <div class="stat-card info" id="statInfo">
+      <span class="stat-num" id="numInfo">0</span>
+      <span class="stat-label">Info</span>
+    </div>
+    <div class="stat-card files">
+      <span class="stat-num" id="numFiles">0</span>
+      <span class="stat-label">Files</span>
+    </div>
+    <div class="scan-actions">
+      <button class="btn-secondary" id="btnNewScan">New Scan</button>
+      <div class="export-group">
+        <button class="btn-export" id="btnExportJson">JSON</button>
+        <button class="btn-export" id="btnExportCsv">CSV</button>
+        <button class="btn-export" id="btnExportMd">Markdown</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filter bar -->
+  <section class="filter-bar hidden" id="filterBar">
+    <div class="filter-pills">
+      <button class="pill active" data-filter="all">All</button>
+      <button class="pill" data-filter="critical">🔴 Critical</button>
+      <button class="pill" data-filter="high">🟠 High</button>
+      <button class="pill" data-filter="medium">🟡 Medium</button>
+      <button class="pill" data-filter="low">🟢 Low</button>
+    </div>
+    <input type="text" class="search-input" id="searchInput" placeholder="Search file, title, CWE…" />
+  </section>
+
+  <!-- Results panel -->
+  <div class="results-container hidden" id="resultsContainer">
+
+    <!-- Vuln list -->
+    <div class="vuln-list" id="vulnList"></div>
+
+    <!-- Detail panel -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-empty" id="detailEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        <p>Select a vulnerability<br/>to view details</p>
+      </div>
+      <div class="detail-content hidden" id="detailContent">
+        <div class="detail-header">
+          <span class="detail-badge" id="detailSeverity"></span>
+          <h3 class="detail-title" id="detailTitle"></h3>
+        </div>
+        <div class="detail-meta">
+          <span id="detailFile"></span>
+          <span id="detailLine"></span>
+          <span id="detailCwe"></span>
+        </div>
+        <p class="detail-desc" id="detailDesc"></p>
+        <div class="detail-section">
+          <h4>Code Context</h4>
+          <pre class="code-block" id="detailSnippet"></pre>
+        </div>
+        <div class="detail-section">
+          <h4>Remediation</h4>
+          <p class="detail-fix" id="detailFix"></p>
+        </div>
+
+        <!-- AI Fix Section -->
+        <div class="ai-section" id="aiSection">
+          <h4>🤖 AI-Assisted Fix</h4>
+          <div class="ai-controls">
+            <select class="ai-provider-select" id="aiProvider">
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="gemini">Gemini (Google)</option>
+              <option value="antigravity">Antigravity</option>
+            </select>
+            <button class="btn-ai" id="btnGetFix">Get AI Fix</button>
+            <button class="btn-clipboard" id="btnCopyPrompt" title="Copy optimized prompt to clipboard">📋 Copy Prompt</button>
+          </div>
+          <div class="ai-result hidden" id="aiResult">
+            <div class="ai-explanation" id="aiExplanation"></div>
+            <pre class="code-block ai-code" id="aiFixCode"></pre>
+          </div>
+          <div class="ai-loading hidden" id="aiLoading">
+            <div class="spinner"></div>
+            <span>Requesting AI analysis…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── SETTINGS MODAL ────────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="settingsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>API Keys & Settings</h2>
+      <button class="btn-icon" id="btnCloseSettings">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="notice">🔒 Keys are encrypted with Windows DPAPI. Never stored in plaintext.</div>
+
+      <div class="key-group">
+        <label>Anthropic (Claude)</label>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyClaude" placeholder="sk-ant-api…" autocomplete="off" />
+          <button class="btn-save-key" data-provider="claude">Save</button>
+          <button class="btn-del-key" data-provider="claude">Delete</button>
+          <span class="key-status" id="statusClaude"></span>
+        </div>
+      </div>
+
+      <div class="key-group">
+        <label>Google (Gemini)</label>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyGemini" placeholder="AIza…" autocomplete="off" />
+          <button class="btn-save-key" data-provider="gemini">Save</button>
+          <button class="btn-del-key" data-provider="gemini">Delete</button>
+          <span class="key-status" id="statusGemini"></span>
+        </div>
+      </div>
+
+      <div class="key-group">
+        <label>Antigravity</label>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyAntigravity" placeholder="API key…" autocomplete="off" />
+          <button class="btn-save-key" data-provider="antigravity">Save</button>
+          <button class="btn-del-key" data-provider="antigravity">Delete</button>
+          <span class="key-status" id="statusAntigravity"></span>
+        </div>
+        <input type="text" class="key-input mt-4" id="endpointAntigravity"
+               placeholder="https://api.antigravity.ai/v1/chat" autocomplete="off" />
+        <button class="btn-save-key mt-4" id="btnSaveEndpoint">Save Endpoint</button>
+      </div>
+
+      <div class="key-group">
+        <label>Scan Settings</label>
+        <div class="setting-row">
+          <label><input type="checkbox" id="settingSkipGit" checked /> Skip .git directories</label>
+        </div>
+        <div class="setting-row">
+          <label><input type="checkbox" id="settingSkipNode" checked /> Skip node_modules</label>
+        </div>
+        <div class="setting-row">
+          <label><input type="checkbox" id="settingScanBin" checked /> Scan executables (.exe, .dll)</label>
+        </div>
+        <div class="setting-row">
+          <label>Max file size (MB):
+            <input type="number" id="settingMaxSize" value="50" min="1" max="500" class="num-input" />
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ─────────────────────────────────────────────────────────────────── -->
+<div class="toast hidden" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
