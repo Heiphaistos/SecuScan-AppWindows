@@ -295,6 +295,28 @@ pub struct AiFixResult {
     pub provider:         LlmProvider,
 }
 
+/// One corrected file produced by the batch AI fix.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilePatch {
+    pub file_path:        String,
+    pub original_content: String,
+    pub patched_content:  String,
+    pub summary:          String,
+    /// IDs of vulnerabilities targeted by this patch
+    pub vuln_ids:         Vec<String>,
+    /// True = patch was successfully applied to disk
+    pub applied:          bool,
+}
+
+/// Progress event emitted during batch fix
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchFixProgress {
+    pub file_idx:     usize,
+    pub total_files:  usize,
+    pub current_file: String,
+    pub status:       String, // "processing" | "done" | "error"
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKeys {
     pub claude_key:             Option<String>,

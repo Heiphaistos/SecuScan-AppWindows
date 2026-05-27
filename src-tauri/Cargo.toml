@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "secuscan-ai"
 version = "1.0.3"
 description = "SecuScan AI - Offensive & Defensive Security Scanner"

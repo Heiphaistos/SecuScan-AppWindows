@@ -25,6 +25,8 @@ pub fn run() {
             // AI
             commands::request_ai_fix,
             commands::build_clipboard_prompt,
+            commands::batch_ai_fix,
+            commands::apply_patch,
             // Export
             commands::export_json,
             commands::export_csv,

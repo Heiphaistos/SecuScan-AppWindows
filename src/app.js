@@ -17,6 +17,8 @@ let searchQuery      = '';
 let progressUnlisten = null;
 let scanStartTime    = null;
 let timerInterval    = null;
+let batchPatches     = [];     // FilePatch[] returned by batch_ai_fix
+let batchUnlisten    = null;
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -92,6 +94,13 @@ function setupButtons() {
 
   $('btnGetFix').addEventListener('click', requestAiFix);
   $('btnCopyPrompt').addEventListener('click', copyAiPrompt);
+
+  // Batch fix
+  $('btnBatchFix').addEventListener('click', openBatchModal);
+  $('btnCloseBatch').addEventListener('click', closeBatchModal);
+  $('batchModal').addEventListener('click', e => { if (e.target === $('batchModal')) closeBatchModal(); });
+  $('btnStartBatch').addEventListener('click', runBatchFix);
+  $('btnApplyAll').addEventListener('click', applyAllPatches);
 }
 
 function setupFilters() {
@@ -460,6 +469,163 @@ function toast(msg, isError = false) {
   el.classList.remove('hidden');
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+// ─── Batch AI Fix ─────────────────────────────────────────────────────────────
+
+function openBatchModal() {
+  if (!currentScan || !currentScan.vulnerabilities.length) {
+    return toast('Lance un scan d\'abord', true);
+  }
+  // Reset state
+  batchPatches = [];
+  $('batchConfig').classList.remove('hidden');
+  $('batchProgress').classList.add('hidden');
+  $('batchResults').classList.add('hidden');
+  $('batchFill').style.width = '0%';
+  $('batchPct').textContent = '0%';
+  $('batchCurrentFile').textContent = '';
+  $('batchStatusLabel').textContent = 'Analyse en cours…';
+  $('patchList').innerHTML = '';
+  $('batchSummary').innerHTML = '';
+  $('btnStartBatch').disabled = false;
+  $('batchModal').classList.remove('hidden');
+}
+
+function closeBatchModal() {
+  $('batchModal').classList.add('hidden');
+  if (batchUnlisten) { batchUnlisten(); batchUnlisten = null; }
+}
+
+async function runBatchFix() {
+  const provider = $('batchProvider').value;
+  $('btnStartBatch').disabled = true;
+  $('batchConfig').classList.add('hidden');
+  $('batchProgress').classList.remove('hidden');
+  $('batchResults').classList.add('hidden');
+
+  // Subscribe to progress events
+  if (batchUnlisten) { batchUnlisten(); batchUnlisten = null; }
+  batchUnlisten = await listen('batch:progress', e => {
+    const p = e.payload;
+    const pct = p.total_files > 0 ? Math.round((p.file_idx / p.total_files) * 100) : 0;
+    $('batchFill').style.width = pct + '%';
+    $('batchPct').textContent  = pct + '%';
+    $('batchCurrentFile').textContent = p.current_file;
+    const isErr = p.status.startsWith('error');
+    $('batchStatusLabel').textContent =
+      isErr ? `⚠️ ${p.file_idx}/${p.total_files} — ${p.status}`
+            : `Fichier ${p.file_idx} / ${p.total_files}`;
+  });
+
+  try {
+    batchPatches = await invoke('batch_ai_fix', { provider });
+    if (batchUnlisten) { batchUnlisten(); batchUnlisten = null; }
+    $('batchProgress').classList.add('hidden');
+    renderBatchResults();
+  } catch (err) {
+    if (batchUnlisten) { batchUnlisten(); batchUnlisten = null; }
+    $('batchProgress').classList.add('hidden');
+    $('batchConfig').classList.remove('hidden');
+    $('btnStartBatch').disabled = false;
+    toast('Batch fix error: ' + err, true);
+  }
+}
+
+function renderBatchResults() {
+  const list = $('patchList');
+  list.innerHTML = '';
+
+  if (!batchPatches.length) {
+    list.innerHTML = '<p style="color:var(--text-muted);padding:12px">Aucun patch généré.</p>';
+  }
+
+  batchPatches.forEach((patch, idx) => {
+    const card = document.createElement('div');
+    card.className = 'patch-card';
+
+    const fileName = patch.file_path.split(/[\\/]/).slice(-2).join('/');
+    const nVulns   = patch.vuln_ids.length;
+
+    card.innerHTML = `
+      <div class="patch-card-header">
+        <span class="patch-filename">${escHtml(fileName)}</span>
+        <span class="patch-vulns">${nVulns} vuln${nVulns > 1 ? 's' : ''} corrigée${nVulns > 1 ? 's' : ''}</span>
+        ${patch.applied ? '<span class="patch-applied">✅ Appliqué</span>' : ''}
+      </div>
+      <p class="patch-summary">${escHtml(patch.summary)}</p>
+      <div class="patch-actions">
+        <button class="btn-secondary patch-btn-preview" data-idx="${idx}">👁 Aperçu diff</button>
+        ${!patch.applied ? `<button class="btn-ai patch-btn-apply" data-idx="${idx}">✅ Appliquer</button>` : ''}
+      </div>
+      <pre class="patch-diff hidden" id="diff-${idx}"></pre>
+    `;
+
+    card.querySelector('.patch-btn-preview').addEventListener('click', () => toggleDiff(idx, patch));
+    const applyBtn = card.querySelector('.patch-btn-apply');
+    if (applyBtn) applyBtn.addEventListener('click', () => applySinglePatch(idx));
+
+    list.appendChild(card);
+  });
+
+  $('batchSummary').innerHTML =
+    `<strong>${batchPatches.length}</strong> fichier(s) analysé(s) — cliquez sur un patch pour voir le diff avant d'appliquer.`;
+  $('batchResults').classList.remove('hidden');
+}
+
+function toggleDiff(idx, patch) {
+  const pre = document.getElementById('diff-' + idx);
+  if (pre.classList.contains('hidden')) {
+    // Generate simple unified diff view
+    const origLines  = patch.original_content.split('\n');
+    const patchLines = patch.patched_content.split('\n');
+    let diffHtml = '';
+    const maxLines = Math.max(origLines.length, patchLines.length);
+    for (let i = 0; i < maxLines && i < 200; i++) {
+      const o = origLines[i] ?? '';
+      const p = patchLines[i] ?? '';
+      if (o === p) {
+        diffHtml += `<span class="diff-same"> ${escHtml(o)}\n</span>`;
+      } else {
+        if (o) diffHtml += `<span class="diff-del">-${escHtml(o)}\n</span>`;
+        if (p) diffHtml += `<span class="diff-add">+${escHtml(p)}\n</span>`;
+      }
+    }
+    pre.innerHTML = diffHtml || '(identical)';
+    pre.classList.remove('hidden');
+  } else {
+    pre.classList.add('hidden');
+  }
+}
+
+async function applySinglePatch(idx) {
+  const patch = batchPatches[idx];
+  if (!patch || patch.applied) return;
+  try {
+    await invoke('apply_patch', { filePath: patch.file_path, patchedContent: patch.patched_content });
+    batchPatches[idx].applied = true;
+    toast(`Patch appliqué : ${patch.file_path.split(/[\\/]/).pop()}`);
+    renderBatchResults();
+  } catch (err) {
+    toast('Erreur application patch: ' + err, true);
+  }
+}
+
+async function applyAllPatches() {
+  let applied = 0;
+  for (let i = 0; i < batchPatches.length; i++) {
+    if (!batchPatches[i].applied) {
+      try {
+        await invoke('apply_patch', { filePath: batchPatches[i].file_path, patchedContent: batchPatches[i].patched_content });
+        batchPatches[i].applied = true;
+        applied++;
+      } catch (err) {
+        toast(`Erreur sur ${batchPatches[i].file_path.split(/[\\/]/).pop()}: ${err}`, true);
+      }
+    }
+  }
+  toast(`${applied} patch(es) appliqué(s) sur disque`);
+  renderBatchResults();
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

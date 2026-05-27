@@ -94,6 +94,7 @@
     </div>
     <div class="scan-actions">
       <button class="btn-secondary" id="btnNewScan">New Scan</button>
+      <button class="btn-ai" id="btnBatchFix" title="Fix all vulnerabilities with AI">🤖 Batch Fix</button>
       <div class="export-group">
         <button class="btn-export" id="btnExportJson">JSON</button>
         <button class="btn-export" id="btnExportCsv">CSV</button>
@@ -240,6 +241,56 @@
           </label>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BATCH FIX MODAL ───────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="batchModal">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>🤖 Batch AI Fix</h2>
+      <button class="btn-icon" id="btnCloseBatch">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Config -->
+      <div id="batchConfig">
+        <div class="notice">
+          Claude analysera chaque fichier affecté et proposera des corrections.
+          Les patches sont prévisualisés <strong>avant</strong> d'être appliqués sur disque.
+        </div>
+        <div class="setting-row" style="margin-top:12px;display:flex;align-items:center;gap:12px">
+          <label style="display:flex;align-items:center;gap:8px">Provider :
+            <select class="ai-provider-select" id="batchProvider">
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="gemini">Gemini (Google)</option>
+              <option value="antigravity">Antigravity</option>
+            </select>
+          </label>
+          <button class="btn-primary" id="btnStartBatch" style="margin-left:auto">▶ Lancer</button>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="batch-progress hidden" id="batchProgress">
+        <div class="progress-header">
+          <span class="progress-label" id="batchStatusLabel">Analyse en cours…</span>
+          <span class="progress-pct" id="batchPct">0%</span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="batchFill" style="width:0%"></div></div>
+        <p class="progress-file" id="batchCurrentFile"></p>
+      </div>
+
+      <!-- Patch results -->
+      <div class="hidden" id="batchResults">
+        <div class="batch-summary" id="batchSummary"></div>
+        <div class="patch-list" id="patchList"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button class="btn-secondary" id="btnApplyAll">✅ Appliquer tous les patches</button>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>

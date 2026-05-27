@@ -7,7 +7,7 @@ use tauri::State;
 
 use crate::api::llm;
 use crate::export;
-use crate::models::{AiFixRequest, AiFixResult, LlmProvider, ScanConfig, ScanResult};
+use crate::models::{AiFixRequest, AiFixResult, BatchFixProgress, FilePatch, LlmProvider, ScanConfig, ScanResult};
 use crate::security::keystore;
 
 // ─── App state ────────────────────────────────────────────────────────────────
@@ -188,6 +188,119 @@ pub fn save_antigravity_endpoint(endpoint: String) -> Result<(), String> {
         return Err("Endpoint must start with http:// or https://".to_string());
     }
     keystore::save_antigravity_endpoint(&endpoint)
+}
+
+// ─── Batch AI Fix ─────────────────────────────────────────────────────────────
+
+/// Fix ALL vulnerabilities across ALL affected files in one batch.
+/// Emits "batch:progress" events. Returns list of FilePatch (one per file).
+#[tauri::command]
+pub async fn batch_ai_fix(
+    provider: LlmProvider,
+    app:      tauri::AppHandle,
+    state:    State<'_, AppState>,
+) -> Result<Vec<FilePatch>, String> {
+    use tauri::Emitter;
+
+    // Collect vulnerabilities from current scan
+    let vulns = {
+        let scan = state.current_scan.lock().unwrap();
+        scan.as_ref()
+            .ok_or("No active scan result")?
+            .vulnerabilities
+            .clone()
+    };
+
+    // API key
+    let key_name = match &provider {
+        LlmProvider::Claude      => "claude",
+        LlmProvider::Gemini      => "gemini",
+        LlmProvider::Antigravity => "antigravity",
+    };
+    let api_key = keystore::load_key(key_name)?
+        .ok_or_else(|| format!("No API key configured for {key_name}"))?;
+    let ag_endpoint = if matches!(provider, LlmProvider::Antigravity) {
+        keystore::load_antigravity_endpoint()
+    } else {
+        None
+    };
+
+    // Group vulns by file path
+    let mut by_file: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
+    for (i, v) in vulns.iter().enumerate() {
+        by_file.entry(v.file_path.clone()).or_default().push(i);
+    }
+
+    let total_files = by_file.len();
+    let mut patches: Vec<FilePatch> = Vec::new();
+
+    for (file_idx, (file_path, vuln_indices)) in by_file.iter().enumerate() {
+        // Emit progress
+        let _ = app.emit("batch:progress", BatchFixProgress {
+            file_idx:     file_idx + 1,
+            total_files,
+            current_file: file_path.split(['/', '\\']).last().unwrap_or(file_path).to_string(),
+            status:       "processing".to_string(),
+        });
+
+        // Read file from disk
+        let original_content = match std::fs::read_to_string(file_path) {
+            Ok(c)  => c,
+            Err(e) => {
+                let _ = app.emit("batch:progress", BatchFixProgress {
+                    file_idx: file_idx + 1, total_files,
+                    current_file: file_path.split(['/', '\\']).last().unwrap_or(file_path).to_string(),
+                    status: format!("error: {e}"),
+                });
+                continue;
+            }
+        };
+
+        let file_vulns: Vec<&crate::models::Vulnerability> =
+            vuln_indices.iter().map(|&i| &vulns[i]).collect();
+        let vuln_ids: Vec<String> = file_vulns.iter().map(|v| v.id.clone()).collect();
+
+        match llm::batch_fix_file(
+            file_path,
+            &original_content,
+            &file_vulns,
+            &provider,
+            &api_key,
+            ag_endpoint.as_deref(),
+        ).await {
+            Ok((patched_content, summary)) => {
+                let _ = app.emit("batch:progress", BatchFixProgress {
+                    file_idx: file_idx + 1, total_files,
+                    current_file: file_path.split(['/', '\\']).last().unwrap_or(file_path).to_string(),
+                    status: "done".to_string(),
+                });
+                patches.push(FilePatch {
+                    file_path:        file_path.clone(),
+                    original_content,
+                    patched_content,
+                    summary,
+                    vuln_ids,
+                    applied: false,
+                });
+            }
+            Err(e) => {
+                let _ = app.emit("batch:progress", BatchFixProgress {
+                    file_idx: file_idx + 1, total_files,
+                    current_file: file_path.split(['/', '\\']).last().unwrap_or(file_path).to_string(),
+                    status: format!("error: {e}"),
+                });
+            }
+        }
+    }
+
+    Ok(patches)
+}
+
+/// Apply a single patch to disk (overwrite file with patched content).
+#[tauri::command]
+pub fn apply_patch(file_path: String, patched_content: String) -> Result<(), String> {
+    std::fs::write(&file_path, patched_content.as_bytes())
+        .map_err(|e| format!("Failed to write {file_path}: {e}"))
 }
 
 // ─── App info ─────────────────────────────────────────────────────────────────
