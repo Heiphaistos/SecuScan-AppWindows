@@ -1,6 +1,6 @@
 [package]
 name = "secuscan-ai"
-version = "1.0.3"
+version = "1.1.0"
 description = "SecuScan AI - Offensive & Defensive Security Scanner"
 authors = ["SecuScan"]
 edition = "2021"
@@ -41,7 +41,7 @@ sha2        = "0.10"
 md5         = "0.7"
 goblin      = { version = "0.9", default-features = false, features = ["pe64", "pe32"] }
 reqwest     = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
-yara-x      = "0.9"
+yara-x      = "1.17"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["dpapi", "wincrypt", "winbase", "minwindef"] }
