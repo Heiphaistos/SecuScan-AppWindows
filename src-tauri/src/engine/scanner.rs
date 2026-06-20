@@ -130,8 +130,21 @@ pub async fn run_scan(
     cancelled: Arc<AtomicBool>,
 ) -> Result<ScanResult, String> {
     let root = PathBuf::from(&target);
+
+    // FIX VULN 4 — Valider que le chemin est absolu et existe en tant que dossier
+    if !root.is_absolute() {
+        return Err("Le chemin de scan doit être absolu".to_string());
+    }
     if !root.exists() {
         return Err(format!("Path does not exist: {target}"));
+    }
+    if !root.is_dir() {
+        return Err(format!("Le chemin doit être un dossier: {target}"));
+    }
+
+    // Validation max_file_size_mb pour éviter les valeurs aberrantes
+    if cfg.max_file_size_mb <= 0.0 || cfg.max_file_size_mb > 500.0 {
+        return Err("max_file_size_mb doit être entre 1 et 500".to_string());
     }
 
     // Collect file list first (for accurate progress)
@@ -347,12 +360,16 @@ fn detect_fp(
 
 // ─── Append to log file ───────────────────────────────────────────────────────
 
-fn log_scan_error(target: &str, error: &str) -> std::io::Result<()> {
+fn log_scan_error(_target: &str, error: &str) -> std::io::Result<()> {
     use std::io::Write;
-    let log_path = std::path::Path::new(target)
-        .parent()
-        .unwrap_or(std::path::Path::new("."))
-        .join("secuscan.log");
+    // FIX VULN 8 — Écrire dans %APPDATA%\SecuScanAI\ au lieu du parent du target
+    // (évite d'écrire dans des dossiers système si target = C:\ ou similaire)
+    let log_dir = std::env::var("APPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("SecuScanAI");
+    std::fs::create_dir_all(&log_dir)?;
+    let log_path = log_dir.join("scan_errors.log");
     let mut f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)

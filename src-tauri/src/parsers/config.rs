@@ -213,7 +213,10 @@ pub fn scan_config(path: &Path, content: &[u8]) -> Vec<Vulnerability> {
     let mut findings: Vec<Vulnerability> = Vec::new();
 
     for rule in get_rules() {
+        // FIX VULN 10 — Limite de 20 matches par règle (cohérent avec sast/script)
+        let mut matches_for_rule = 0usize;
         for m in rule.pattern.find_iter(text) {
+            if matches_for_rule >= 20 { break; }
             let line_idx = text[..m.start()].chars().filter(|&c| c == '\n').count();
             let snippet  = context_snippet(&lines, line_idx, 1);
             let matched  = m.as_str().chars().take(100).collect::<String>();
@@ -230,6 +233,7 @@ pub fn scan_config(path: &Path, content: &[u8]) -> Vec<Vulnerability> {
                 .with_snippet(snippet)
                 .with_match(matched),
             );
+            matches_for_rule += 1;
         }
     }
 

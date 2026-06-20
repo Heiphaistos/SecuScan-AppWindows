@@ -169,6 +169,15 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
         return Err("Le chemin d'export doit être dans le répertoire utilisateur".to_string());
     }
 
+    // FIX VULN 2 — Whitelist extensions export (évite d'écrire dans un .exe/.bat/etc.)
+    let allowed_export_exts = ["json", "csv", "md", "txt", "html"];
+    let dest_ext = canonical_dest.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !allowed_export_exts.contains(&dest_ext) {
+        return Err(format!("Extension .{dest_ext} non autorisée pour l'export de rapport"));
+    }
+
     let scan = state.current_scan.lock().unwrap();
     let result = scan.as_ref().ok_or("No scan result to export")?;
     let content = match format.as_str() {
@@ -179,7 +188,8 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
         "html" => export::to_html(result),
         _      => return Err(format!("Unknown format: {format}")),
     };
-    std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
+    // FIX TOCTOU — écrire sur le chemin canonicalisé, pas sur &path (chemin original)
+    std::fs::write(&canonical_dest, content.as_bytes()).map_err(|e| e.to_string())
 }
 
 // ─── Key management commands ──────────────────────────────────────────────────
@@ -189,11 +199,23 @@ pub fn save_api_key(provider: String, key: String) -> Result<(), String> {
     if key.trim().is_empty() {
         return Err("API key cannot be empty".to_string());
     }
+    // FIX VULN 5 — Cap longueur clé (limite raisonnable pour toute clé API)
+    if key.len() > 4096 {
+        return Err("API key trop longue (max 4096 caractères)".to_string());
+    }
+    // Whitelist providers autorisés
+    if !matches!(provider.as_str(), "claude" | "gemini" | "antigravity") {
+        return Err(format!("Provider inconnu: {provider}"));
+    }
     keystore::save_key(&provider, &key)
 }
 
 #[tauri::command]
 pub fn delete_api_key(provider: String) -> Result<(), String> {
+    // FIX VULN 6 — Whitelist providers avant d'appeler le keystore
+    if !matches!(provider.as_str(), "claude" | "gemini" | "antigravity") {
+        return Err("Provider inconnu".to_string());
+    }
     keystore::delete_key(&provider)
 }
 
@@ -204,6 +226,10 @@ pub fn get_key_status() -> serde_json::Value {
 
 #[tauri::command]
 pub fn save_antigravity_endpoint(endpoint: String) -> Result<(), String> {
+    // FIX VULN 7 — Cap longueur URL
+    if endpoint.len() > 2048 {
+        return Err("URL trop longue (max 2048 caractères)".to_string());
+    }
     // FIX M7 — SSRF: enforce HTTPS and block private/local addresses
     if !endpoint.starts_with("https://") {
         return Err("L'endpoint doit utiliser HTTPS (https://)".to_string());
@@ -265,7 +291,38 @@ pub async fn batch_ai_fix(
     let total_files = by_file.len();
     let mut patches: Vec<FilePatch> = Vec::new();
 
+    // Chemin racine du scan — tous les fichiers doivent être dedans
+    let scan_root = {
+        let scan = state.current_scan.lock().unwrap();
+        scan.as_ref()
+            .map(|r| std::path::PathBuf::from(&r.target_path))
+            .and_then(|p| p.canonicalize().ok())
+    };
+
     for (file_idx, (file_path, vuln_indices)) in by_file.iter().enumerate() {
+        // FIX VULN 3 — Valider que le fichier est bien dans le répertoire scanné
+        if let Some(ref root) = scan_root {
+            let canonical_fp = match std::path::PathBuf::from(file_path).canonicalize() {
+                Ok(p) => p,
+                Err(_) => {
+                    let _ = app.emit("batch:progress", BatchFixProgress {
+                        file_idx: file_idx + 1, total_files,
+                        current_file: file_path.split(['/', '\\']).last().unwrap_or(file_path).to_string(),
+                        status: "error: chemin invalide".to_string(),
+                    });
+                    continue;
+                }
+            };
+            if !canonical_fp.starts_with(root) {
+                let _ = app.emit("batch:progress", BatchFixProgress {
+                    file_idx: file_idx + 1, total_files,
+                    current_file: file_path.split(['/', '\\']).last().unwrap_or(file_path).to_string(),
+                    status: "error: chemin hors du répertoire scanné".to_string(),
+                });
+                continue;
+            }
+        }
+
         // Emit progress
         let _ = app.emit("batch:progress", BatchFixProgress {
             file_idx:     file_idx + 1,
