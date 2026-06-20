@@ -149,6 +149,26 @@ pub fn export_html(state: State<'_, AppState>) -> Result<String, String> {
 /// Save report directly to disk (called after user picks path via save dialog).
 #[tauri::command]
 pub fn save_report_to_file(format: String, path: String, state: State<'_, AppState>) -> Result<(), String> {
+    // FIX H2 — Path traversal: restrict export to user home directory
+    let dest = std::path::PathBuf::from(&path);
+    let canonical_dest = dest.canonicalize()
+        .or_else(|_| {
+            // File may not exist yet — canonicalize parent directory instead
+            dest.parent()
+                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no parent dir"))
+                .and_then(|p| p.canonicalize())
+        })
+        .map_err(|e| format!("Chemin de destination invalide: {e}"))?;
+
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map(std::path::PathBuf::from)
+        .map_err(|_| "Impossible de déterminer le répertoire home".to_string())?;
+
+    if !canonical_dest.starts_with(&home) {
+        return Err("Le chemin d'export doit être dans le répertoire utilisateur".to_string());
+    }
+
     let scan = state.current_scan.lock().unwrap();
     let result = scan.as_ref().ok_or("No scan result to export")?;
     let content = match format.as_str() {
@@ -184,9 +204,20 @@ pub fn get_key_status() -> serde_json::Value {
 
 #[tauri::command]
 pub fn save_antigravity_endpoint(endpoint: String) -> Result<(), String> {
-    if !endpoint.starts_with("http") {
-        return Err("Endpoint must start with http:// or https://".to_string());
+    // FIX M7 — SSRF: enforce HTTPS and block private/local addresses
+    if !endpoint.starts_with("https://") {
+        return Err("L'endpoint doit utiliser HTTPS (https://)".to_string());
     }
+
+    let url = url::Url::parse(&endpoint)
+        .map_err(|e| format!("URL invalide: {e}"))?;
+
+    let host = url.host_str().unwrap_or("");
+    let blocked_prefixes = ["localhost", "127.", "0.0.0.0", "10.", "192.168.", "172.16.", "::1", "169.254."];
+    if blocked_prefixes.iter().any(|b| host.starts_with(b) || host == b.trim_end_matches('.')) {
+        return Err("Les adresses locales/privées ne sont pas autorisées".to_string());
+    }
+
     keystore::save_antigravity_endpoint(&endpoint)
 }
 
@@ -299,8 +330,46 @@ pub async fn batch_ai_fix(
 /// Apply a single patch to disk (overwrite file with patched content).
 #[tauri::command]
 pub fn apply_patch(file_path: String, patched_content: String) -> Result<(), String> {
-    std::fs::write(&file_path, patched_content.as_bytes())
-        .map_err(|e| format!("Failed to write {file_path}: {e}"))
+    // FIX C1 — Path traversal: validate path before writing
+    let path = std::path::PathBuf::from(&file_path);
+
+    // Must be absolute path
+    if !path.is_absolute() {
+        return Err("Chemin absolu requis".to_string());
+    }
+
+    // Canonicalize to resolve symlinks and ..
+    let canonical = path.canonicalize()
+        .map_err(|e| format!("Chemin invalide: {e}"))?;
+
+    // Must be within user home directory
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map(std::path::PathBuf::from)
+        .map_err(|_| "Impossible de déterminer le répertoire home".to_string())?;
+
+    if !canonical.starts_with(&home) {
+        return Err(format!(
+            "Accès refusé: {} hors du répertoire utilisateur",
+            canonical.display()
+        ));
+    }
+
+    // Whitelist source code extensions
+    let allowed_exts = [
+        "py", "js", "ts", "tsx", "jsx", "rs", "go", "c", "cpp", "h", "hpp",
+        "java", "cs", "rb", "php", "swift", "kt", "lua", "sh", "bash", "zsh",
+        "yaml", "yml", "toml", "json", "xml", "html", "css",
+    ];
+    let ext = canonical.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !allowed_exts.contains(&ext) {
+        return Err(format!("Extension .{} non autorisée pour les patches", ext));
+    }
+
+    std::fs::write(&canonical, patched_content.as_bytes())
+        .map_err(|e| format!("Échec écriture {}: {e}", canonical.display()))
 }
 
 // ─── App info ─────────────────────────────────────────────────────────────────

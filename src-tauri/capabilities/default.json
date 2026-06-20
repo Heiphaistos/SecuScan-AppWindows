@@ -13,7 +13,6 @@
     "fs:allow-read-dir",
     "fs:allow-write-file",
     "fs:allow-mkdir",
-    "fs:allow-exists",
-    "shell:default"
+    "fs:allow-exists"
   ]
 }
