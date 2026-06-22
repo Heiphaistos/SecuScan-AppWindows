@@ -1,104 +1,109 @@
-# SecuScan AI
+<div align="center">
+  <h1>SecuScan AI</h1>
+  <p><strong>Scanner de sécurité desktop Windows — YARA, PE, SAST, secrets, DPAPI, analyse IA intégrée.</strong></p>
 
-> **Offensive & Defensive Security Scanner** — Single-file portable `.exe` for Windows 10/11
-
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/heiphaistos44-crypto/SecuScan/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d7)](https://github.com/heiphaistos44-crypto/SecuScan)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
----
-
-## What is SecuScan AI?
-
-SecuScan AI scans an entire project directory for security vulnerabilities across all file types — source code, scripts, configuration files, and executables — then uses AI (Claude, Gemini, Antigravity) to explain and auto-fix each finding.
-
-### Key capabilities
-
-| Category | Detections |
-|----------|-----------|
-| **Source Code (SAST)** | SQL Injection, XSS, Command Injection, Path Traversal, Weak Crypto, Hardcoded Secrets, Open Redirect, Insecure Deserialization, CORS misconfiguration |
-| **Scripts (.bat, .ps1, .sh)** | Encoded payloads, AV disable, privilege escalation, payload download cradles, persistence mechanisms |
-| **Config & Backups (.env, .json, .yaml, .bak)** | AWS/GCP/OpenAI/Stripe/GitHub API keys, passwords, JWTs, DB connection strings, high-entropy secrets |
-| **Binaries (.exe, .dll)** | Missing ASLR/DEP/CFG, YARA malware rules (DLL injection, process hollowing, ransomware, shellcode) |
+  ![Version](https://img.shields.io/badge/version-1.0.5-blue)
+  ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?logo=windows)
+  ![Stack](https://img.shields.io/badge/stack-Tauri%20v2%20%2B%20Rust%20%2B%20Vue%203-purple)
+  ![License](https://img.shields.io/badge/licence-MIT-green)
+</div>
 
 ---
 
-## Screenshots
+## Description
 
-*Coming soon*
+SecuScan AI est un scanner de sécurité desktop Windows distribué en un seul `.exe` portable (< 40 MB RAM). Il analyse l'intégralité d'un répertoire de projet — code source, scripts, fichiers de configuration et exécutables — puis propose des corrections automatiques via IA (Claude, Gemini). Les clés API sont chiffrées via Windows DPAPI, jamais stockées en clair.
+
+---
+
+## Fonctionnalités
+
+- **Scanner YARA** — règles personnalisées : injection DLL, process hollowing, ransomware, shellcode
+- **Analyse PE** — headers, imports, sections, détection ASLR/DEP/CFG manquants (via goblin)
+- **SAST statique** — SQL Injection, XSS, Command Injection, Path Traversal, Open Redirect, CORS erroné, crypto faible (OWASP Top 10)
+- **Détection de secrets** — entropie Shannon + 14 patterns (AWS, GCP, OpenAI, Stripe, GitHub, JWT, passwords DB…)
+- **Scripts malveillants** — analyse `.bat`, `.ps1`, `.sh` : payloads encodés, élévation de privilèges, mécanismes de persistance
+- **DPAPI** — stockage chiffré Windows des clés API, déchiffrement par utilisateur uniquement
+- **Batch Fix automatique** — correction groupée de catégories de vulnérabilités
+- **Faux positifs hints** — marquage et exclusion des faux positifs identifiés
+- **Filtrage lignes longues** — évite les faux positifs sur les fichiers minifiés
+- **Export TXT/HTML** — rapport détaillé avec dialog de sauvegarde natif
+- **Interface par sévérité** — 4 niveaux : Critique, Haute, Moyenne, Faible
+
+---
+
+## Stack technique
+
+| Couche | Technologies |
+|--------|-------------|
+| Desktop | Tauri v2 + WebView2 |
+| Moteur de scan | Rust (tokio async + rayon scan parallèle) |
+| Frontend | Vue 3 + TypeScript |
+| Analyse binaire | goblin (PE headers) + yara-x (règles YARA) |
+| Détection secrets | Entropie Shannon + 14 patterns fournisseurs |
+| Intégration IA | Anthropic Claude + Google Gemini |
+| Stockage clés | Windows DPAPI (jamais en clair) |
+| Distribution | `.exe` portable, dépendance WebView2 système uniquement |
 
 ---
 
 ## Installation
 
-### Option A — Portable (recommended)
+### Option A — Portable (recommandée)
 
-1. Download `SecuScan-AI-v1.0.0-portable.exe` from the [latest release](https://github.com/heiphaistos44-crypto/SecuScan/releases/latest).
-2. Run it directly — no installation required.
-3. System WebView2 is used (pre-installed on Windows 10/11).
+1. Télécharger `SecuScan-AI-v1.0.5-portable.exe` depuis la [page Releases](https://github.com/heiphaistos44-crypto/SecuScan/releases/latest).
+2. Exécuter directement — aucune installation requise.
+3. WebView2 est préinstallé sur Windows 10/11.
 
-### Option B — Installer
+### Option B — Installeur NSIS
 
-Download `SecuScan-AI-v1.0.0-setup.exe` and run the NSIS installer.
-
----
-
-## Quick Start
-
-1. Launch **SecuScan AI**
-2. Click ⚙️ to add your API keys (Claude / Gemini / Antigravity) — keys are encrypted via **Windows DPAPI**
-3. Drag a project folder onto the drop zone (or click **Browse folder**)
-4. Review findings by severity: 🔴 Critical → 🟠 High → 🟡 Medium → 🟢 Low
-5. Click a finding → **Get AI Fix** for instant explanation + corrected code
-6. Export report as **JSON**, **CSV**, or **Markdown**
+Télécharger et exécuter `SecuScan-AI-v1.0.5-setup.exe`.
 
 ---
 
-## Tech Stack
+## Utilisation rapide
 
-| Component | Technology |
-|-----------|-----------|
-| Backend engine | **Rust** (tokio async, rayon parallel scan) |
-| UI shell | **Tauri v2** (WebView2, <40 MB RAM) |
-| SAST | Custom regex ruleset (OWASP Top 10) |
-| Binary analysis | **goblin** (PE headers) + **yara-x** (malware rules) |
-| Secret detection | Shannon entropy + 14 provider-specific patterns |
-| AI integration | **Anthropic Claude**, **Google Gemini**, **Antigravity** |
-| Key storage | **Windows DPAPI** — keys never stored in plaintext |
-| Distribution | Single `.exe`, no runtime dependency (WebView2 system) |
+1. Lancer **SecuScan AI**
+2. Cliquer sur **Paramètres** pour ajouter vos clés API (Claude / Gemini) — chiffrées par DPAPI
+3. Glisser-déposer un dossier de projet sur la zone de scan (ou **Parcourir**)
+4. Consulter les résultats par sévérité : Critique > Haute > Moyenne > Faible
+5. Cliquer sur une vulnérabilité → **Corriger avec IA** pour obtenir une explication + le code corrigé
+6. Exporter le rapport en **TXT** ou **HTML**
 
 ---
 
-## Building from Source
+## Build depuis les sources
 
-**Prerequisites:** Rust 1.70+, Node.js 18+, Windows 10/11
+**Prérequis :** Rust 1.70+, Node.js 18+, Windows 10/11
 
 ```bash
 git clone https://github.com/heiphaistos44-crypto/SecuScan.git
 cd SecuScan
 npm install
-npm run build        # or: npx tauri build
+npx tauri build
 ```
 
-Artifacts in `src-tauri/target/release/`:
-- `secuscan-ai.exe` — portable binary
-- `bundle/nsis/SecuScan-AI_1.0.0_x64-setup.exe` — installer
+Artefacts dans `src-tauri/target/release/` :
+- `secuscan-ai.exe` — binaire portable
+- `bundle/nsis/SecuScan-AI_1.0.5_x64-setup.exe` — installeur
 
 ---
 
-## Security & Privacy
+## Sécurité et confidentialité
 
-- API keys are **AES-encrypted via Windows DPAPI** per-user, never stored in plaintext.
-- Only the vulnerable code **snippet** (±2 lines of context) is sent to the AI — never the full project.
-- A confirmation dialog is shown before sending any code to an external LLM.
-- All network calls use **rustls** (no system SSL dependency).
-
----
-
-## License
-
-MIT — See [LICENSE](LICENSE)
+- Les clés API sont chiffrées via **Windows DPAPI** par utilisateur, jamais stockées en clair.
+- Seul le **snippet vulnérable** (± 2 lignes de contexte) est envoyé à l'IA — jamais le projet complet.
+- Une boîte de dialogue de confirmation s'affiche avant tout envoi de code à un LLM externe.
+- Toutes les connexions réseau utilisent **rustls** (pas de dépendance SSL système).
 
 ---
 
-*Generated by SecuScan AI v1.0.0*
+## Aperçu
+
+> Captures disponibles lors de la prochaine release publique.
+
+---
+
+## Licence
+
+MIT — © 2026 Heiphaistos
