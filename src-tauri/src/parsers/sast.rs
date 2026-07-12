@@ -271,6 +271,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Template auto-escaping disabled or raw HTML bound (|safe, mark_safe, v-html). Renders unescaped user input.",
                 "Keep auto-escaping on. Sanitize with DOMPurify/bleach before marking content safe."
             ),
+            // ── SQL Injection — ORM raw query with interpolation ──────────
+            r!(
+                r#"(?i)\.(raw|query)\s*\(\s*(`[^`]{0,80}\$\{|["'][^"']{0,80}["']\s*\+|f["'][^"']{0,80}\{)"#,
+                Severity::High, VulnCategory::SqlInjection,
+                "SQL Injection — ORM raw query with interpolation",
+                "Raw SQL passed to an ORM (.raw()/.query() in Sequelize/Django/GORM/knex) built with string interpolation or concatenation.",
+                "Use the ORM's parameter binding (replacements/params/$1) instead of interpolating user input."
+            ),
         ]
     });
     &RULES
