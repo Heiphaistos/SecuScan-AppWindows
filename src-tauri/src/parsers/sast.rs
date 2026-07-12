@@ -295,6 +295,54 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Java native deserialization (ObjectInputStream.readObject / XMLDecoder) of untrusted data enables RCE via gadget chains.",
                 "Never deserialize untrusted input. Use a safe format (JSON) with a validating parser, or an allowlist ObjectInputFilter."
             ),
+            // ── Go text/template used for HTML (XSS) ──────────────────────
+            r!(
+                r#""text/template""#,
+                Severity::Medium, VulnCategory::Xss,
+                "XSS — Go text/template used for web output",
+                "text/template does not HTML-escape. Rendering it to a browser allows XSS.",
+                "Use html/template for any HTML/web output; it escapes contextually."
+            ),
+            // ── GraphQL introspection enabled ─────────────────────────────
+            r!(
+                r#"(?i)(introspection\s*:\s*true|graphiql\s*:\s*true|__schema\s*\{)"#,
+                Severity::Medium, VulnCategory::InsecureConfiguration,
+                "GraphQL Introspection / GraphiQL Enabled",
+                "Introspection or GraphiQL exposed in production leaks the full schema to attackers.",
+                "Disable introspection and GraphiQL in production."
+            ),
+            // ── Mass assignment ───────────────────────────────────────────
+            r!(
+                r#"(?i)(\.update_attributes\b|params\.permit!|\.save\(\s*strict:\s*false|new\s+\w+\(\s*req\.body\s*\))"#,
+                Severity::High, VulnCategory::InsecureConfiguration,
+                "Mass Assignment — Unfiltered Model Binding",
+                "Binding the whole request body/params to a model lets attackers set unintended fields (is_admin, role).",
+                "Whitelist assignable fields (strong params / DTO). Never bind raw request bodies to models."
+            ),
+            // ── XML entity expansion (billion laughs) ─────────────────────
+            r!(
+                r#"(?i)<!ENTITY\s+\w+\s+["'][^"']{0,40}&\w+;|<!DOCTYPE[^>]{0,80}<!ENTITY"#,
+                Severity::High, VulnCategory::InsecureConfiguration,
+                "XML Entity Expansion (Billion Laughs DoS)",
+                "Nested internal DTD entities expand exponentially, exhausting memory/CPU (DoS).",
+                "Disable DTD processing. Cap entity expansion. Prefer a hardened XML parser (defusedxml)."
+            ),
+            // ── ReDoS — user-controlled regex ─────────────────────────────
+            r!(
+                r#"(?i)new\s+RegExp\s*\(\s*[^)]{0,40}(req\.(query|params|body)|request\.|input)"#,
+                Severity::Medium, VulnCategory::InsecureConfiguration,
+                "ReDoS — Regex Built from User Input",
+                "Compiling a regex from user input allows catastrophic backtracking (denial of service).",
+                "Do not build regexes from user input, or use a linear-time engine (RE2) and bound input length."
+            ),
+            // ── Path traversal via join(user input) ───────────────────────
+            r!(
+                r#"(?i)(path\.join|os\.path\.join)\s*\(\s*[^)]{0,40}(req\.(query|params|body)|request\.(args|form))"#,
+                Severity::High, VulnCategory::PathTraversal,
+                "Path Traversal — User Input in File Path Join",
+                "Joining user input into a filesystem path allows escaping the base directory (../../etc/passwd).",
+                "Resolve the final path and assert it stays within an allowed base; reject '..' segments."
+            ),
         ]
     });
     &RULES
