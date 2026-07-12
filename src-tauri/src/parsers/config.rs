@@ -207,6 +207,30 @@ fn get_rules() -> &'static Vec<Rule> {
                 "JWT signing secret hardcoded. Anyone with it can forge valid tokens for any user.",
                 "Move to environment variable. Rotate the secret and invalidate existing tokens."
             ),
+            // ── Azure Storage account key ─────────────────────────────────
+            r!(
+                r"AccountKey=[A-Za-z0-9+/]{86}==",
+                Severity::Critical, VulnCategory::ConnectionStringLeak,
+                "Azure Storage Account Key",
+                "Azure Storage account key found in a connection string. Grants full blob/queue/table access.",
+                "Rotate the key in the Azure portal. Use SAS tokens or Managed Identity instead."
+            ),
+            // ── DigitalOcean PAT ──────────────────────────────────────────
+            r!(
+                r"dop_v1_[a-f0-9]{64}",
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "DigitalOcean Personal Access Token",
+                "DigitalOcean API token exposed. Allows full control of droplets and resources.",
+                "Revoke at cloud.digitalocean.com/account/api. Store in a secrets manager."
+            ),
+            // ── Mailgun API key ───────────────────────────────────────────
+            r!(
+                r"key-[0-9a-zA-Z]{32}",
+                Severity::High, VulnCategory::ApiKeyLeak,
+                "Mailgun API Key",
+                "Mailgun API key exposed. Allows sending email as the account (phishing risk).",
+                "Rotate at app.mailgun.com. Store server-side only."
+            ),
         ]
     });
     &RULES
