@@ -343,6 +343,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Joining user input into a filesystem path allows escaping the base directory (../../etc/passwd).",
                 "Resolve the final path and assert it stays within an allowed base; reject '..' segments."
             ),
+            // ── Dangerous URL scheme in request (SSRF/LFI) ────────────────
+            r!(
+                r#"(?i)(fetch|requests\.(get|post)|urlopen|axios|curl_exec|file_get_contents|http\.get)\s*\(\s*[^)]{0,30}["'](gopher|dict|file|ftp)://"#,
+                Severity::High, VulnCategory::InsecureConfiguration,
+                "SSRF / LFI — Dangerous URL Scheme in Request",
+                "A request uses gopher://, dict://, file:// or ftp:// — schemes abused for SSRF pivoting and local file read.",
+                "Restrict outbound requests to http(s) and an allowlist of hosts. Reject non-http schemes."
+            ),
         ]
     });
     &RULES
