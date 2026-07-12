@@ -359,6 +359,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "The request Origin is echoed back into Access-Control-Allow-Origin. With credentials this is effectively `*`, letting any site make authenticated cross-origin requests.",
                 "Reflect only origins from an explicit allowlist. Never echo the raw Origin header when credentials are allowed."
             ),
+            // ── Sensitive data in URL query string ────────────────────────
+            r!(
+                r#"(?i)(https?://[^\s"'`]{0,120}[?&](password|passwd|pwd|token|api[_-]?key|secret|access[_-]?token|session)=)"#,
+                Severity::Medium, VulnCategory::SensitiveDataExposure,
+                "Sensitive Data in URL Query String",
+                "A credential/token is passed in a URL query string. URLs are logged (server logs, proxies, browser history, Referer header) — the secret leaks into all of them.",
+                "Send secrets in the request body or an Authorization header, never in the query string."
+            ),
         ]
     });
     &RULES
