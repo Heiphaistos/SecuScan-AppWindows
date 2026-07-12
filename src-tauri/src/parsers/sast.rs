@@ -287,6 +287,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Predictable temp-file name (mktemp/tmpnam/tempfile.mktemp) — race condition / symlink attack (TOCTOU).",
                 "Use atomic APIs: tempfile.NamedTemporaryFile / mkstemp() (Python), mkstemp(3) (C), fs.mkdtemp (Node)."
             ),
+            // ── Insecure deserialization — Java ObjectInputStream ─────────
+            r!(
+                r#"(?i)new\s+ObjectInputStream\s*\(|\.readObject\s*\(\s*\)|readUnshared\s*\(\s*\)|XMLDecoder\s*\("#,
+                Severity::Critical, VulnCategory::InsecureDeserialization,
+                "Insecure Deserialization — Java ObjectInputStream",
+                "Java native deserialization (ObjectInputStream.readObject / XMLDecoder) of untrusted data enables RCE via gadget chains.",
+                "Never deserialize untrusted input. Use a safe format (JSON) with a validating parser, or an allowlist ObjectInputFilter."
+            ),
         ]
     });
     &RULES
