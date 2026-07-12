@@ -375,6 +375,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Access to the cloud instance metadata service (169.254.169.254 / metadata.google.internal). If reachable via SSRF it leaks temporary cloud credentials and IAM tokens.",
                 "Require IMDSv2 (hop limit + session token). Never proxy user-controlled URLs to the metadata IP; block 169.254.169.254 egress from app code."
             ),
+            // ── Weak randomness for security value ────────────────────────
+            r!(
+                r#"(?i)(Math\.random\(\)|new\s+Random\(\))[^;\n]{0,40}(token|secret|otp|nonce|session|reset|salt|password|api[_-]?key)"#,
+                Severity::High, VulnCategory::WeakCrypto,
+                "Weak Randomness for Security Value",
+                "A security-sensitive value (token, OTP, session id, salt…) is derived from a non-cryptographic RNG (Math.random / java.util.Random). Output is predictable and can be brute-forced.",
+                "Use a CSPRNG: crypto.randomBytes / crypto.getRandomValues (JS), secrets (Python), SecureRandom (Java), rand::rngs::OsRng (Rust)."
+            ),
         ]
     });
     &RULES
