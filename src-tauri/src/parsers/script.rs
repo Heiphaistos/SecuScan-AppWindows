@@ -198,6 +198,30 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Script reads or overwrites the clipboard — used by clippers to swap crypto wallet addresses.",
                 "Audit clipboard access. Alert if paired with wallet-address patterns."
             ),
+            // ── Follina (CVE-2022-30190) ──────────────────────────────────
+            r!(
+                r#"(?i)(ms-msdt:|msdt\.exe\s+.{0,40}IT_BrowseForFile|msdt\.exe\s+/id\s+PCWDiagnostic)"#,
+                Severity::Critical, VulnCategory::ArbitraryCodeExecution,
+                "Follina — MSDT Protocol Abuse (CVE-2022-30190)",
+                "ms-msdt: protocol / msdt.exe invocation used to achieve code execution from a document.",
+                "Disable the ms-msdt URL protocol handler. Patch (CVE-2022-30190). Block msdt.exe via ASR rules."
+            ),
+            // ── Reflective assembly load ──────────────────────────────────
+            r!(
+                r#"(?i)\[?(System\.)?Reflection\.Assembly\]?::Load(WithPartialName|File|From)?\s*\("#,
+                Severity::High, VulnCategory::ArbitraryCodeExecution,
+                "PowerShell Reflective Assembly Load",
+                ".NET assembly loaded in-memory via [Reflection.Assembly]::Load — fileless execution of managed payloads.",
+                "Audit why an assembly is loaded at runtime. Enable Script Block Logging + AMSI."
+            ),
+            // ── Base64 deobfuscation marker ───────────────────────────────
+            r!(
+                r#"(?i)\[Convert\]::FromBase64String\s*\("#,
+                Severity::Medium, VulnCategory::ObfuscatedCommand,
+                "Base64 Decoding in Script",
+                "[Convert]::FromBase64String often decodes an obfuscated payload before execution.",
+                "Inspect the decoded content. Flag if followed by IEX/Assembly.Load/Invoke."
+            ),
         ]
     });
     &RULES
