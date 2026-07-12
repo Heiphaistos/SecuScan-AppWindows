@@ -279,6 +279,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Raw SQL passed to an ORM (.raw()/.query() in Sequelize/Django/GORM/knex) built with string interpolation or concatenation.",
                 "Use the ORM's parameter binding (replacements/params/$1) instead of interpolating user input."
             ),
+            // ── Insecure temp file ────────────────────────────────────────
+            r!(
+                r#"(?i)(tempfile\.mktemp\s*\(|\bmktemp\s*\(|\btmpnam\s*\(|\btempnam\s*\(|\btmpfile\s*\()"#,
+                Severity::Medium, VulnCategory::InsecureConfiguration,
+                "Insecure Temporary File Creation",
+                "Predictable temp-file name (mktemp/tmpnam/tempfile.mktemp) — race condition / symlink attack (TOCTOU).",
+                "Use atomic APIs: tempfile.NamedTemporaryFile / mkstemp() (Python), mkstemp(3) (C), fs.mkdtemp (Node)."
+            ),
         ]
     });
     &RULES
