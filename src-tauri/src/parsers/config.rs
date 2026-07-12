@@ -231,6 +231,30 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Mailgun API key exposed. Allows sending email as the account (phishing risk).",
                 "Rotate at app.mailgun.com. Store server-side only."
             ),
+            // ── Datadog API key ───────────────────────────────────────────
+            r!(
+                r#"(?i)(datadog|dd[_-]?api[_-]?key)["'\s:=]{1,6}[a-f0-9]{32}"#,
+                Severity::High, VulnCategory::ApiKeyLeak,
+                "Datadog API Key",
+                "Datadog API key exposed. Allows metric/log ingestion and account data access.",
+                "Rotate at app.datadoghq.com/organization-settings/api-keys. Store in a secrets manager."
+            ),
+            // ── Heroku API key ────────────────────────────────────────────
+            r!(
+                r#"(?i)heroku[a-z0-9_ \-]{0,15}["'\s:=]{1,4}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#,
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "Heroku API Key",
+                "Heroku API key (UUID) exposed. Grants control of apps and add-ons.",
+                "Revoke via `heroku authorizations`. Store in config vars, not source."
+            ),
+            // ── Cloudflare API token ──────────────────────────────────────
+            r!(
+                r#"(?i)(cloudflare|cf[_-]?api[_-]?token)["'\s:=]{1,6}[A-Za-z0-9_\-]{40}"#,
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "Cloudflare API Token",
+                "Cloudflare API token exposed. Allows DNS/zone/security changes at the token's scope.",
+                "Revoke at dash.cloudflare.com/profile/api-tokens. Use least-privilege scoped tokens."
+            ),
         ]
     });
     &RULES
