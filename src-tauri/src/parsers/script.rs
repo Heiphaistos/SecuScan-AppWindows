@@ -222,6 +222,38 @@ fn get_rules() -> &'static Vec<Rule> {
                 "[Convert]::FromBase64String often decodes an obfuscated payload before execution.",
                 "Inspect the decoded content. Flag if followed by IEX/Assembly.Load/Invoke."
             ),
+            // ── Obfuscation markers ───────────────────────────────────────
+            r!(
+                r#"(?i)(invoke-obfuscation|-bxor\s|-join\s*\(\s*\[char\]|\[char\]\s*0x[0-9a-f]{2}\s*\+)"#,
+                Severity::High, VulnCategory::ObfuscatedCommand,
+                "PowerShell Obfuscation Markers",
+                "Char-array / -bxor / -join obfuscation or Invoke-Obfuscation output — used to hide malicious commands.",
+                "Deobfuscate and inspect. Enable Script Block Logging (Event ID 4104) to capture the decoded command."
+            ),
+            // ── Credential store copy (NTDS/SAM) ──────────────────────────
+            r!(
+                r#"(?i)(esentutl\s+/y|esentutl\s+.{0,40}\.dmp|copy\s+.{0,40}\\ntds\.dit|reg\s+save\s+hklm\\sam)"#,
+                Severity::Critical, VulnCategory::SensitiveDataExposure,
+                "Credential Store Copy (NTDS / SAM)",
+                "Copying ntds.dit or the SAM hive (via esentutl, VSS or reg save) is a credential-theft technique.",
+                "Alert on access to NTDS/SAM. Restrict backup privileges. Monitor esentutl usage."
+            ),
+            // ── Shadow storage resize (ransomware prep) ───────────────────
+            r!(
+                r#"(?i)vssadmin\s+resize\s+shadowstorage"#,
+                Severity::Critical, VulnCategory::RansomwareIndicator,
+                "VSS Shadow Storage Resize",
+                "Resizing shadow storage to a tiny size silently deletes shadow copies — a common ransomware pre-encryption step.",
+                "Alert on vssadmin resize. Protect shadow storage. Maintain offline backups."
+            ),
+            // ── NTFS alternate data stream ────────────────────────────────
+            r!(
+                r#"(?i)(Add-Content|Set-Content)\s+[^\n]{0,60}-Stream\s|:\$DATA\b"#,
+                Severity::High, VulnCategory::SuspiciousPersistence,
+                "NTFS Alternate Data Stream Usage",
+                "Writing to an NTFS alternate data stream (:$DATA / -Stream) hides a payload from normal file listing.",
+                "Scan for ADS (dir /r, Get-Item -Stream). Block execution from ADS via WDAC."
+            ),
         ]
     });
     &RULES

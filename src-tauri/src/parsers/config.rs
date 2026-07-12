@@ -279,6 +279,22 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Square OAuth/production access token exposed. Allows payment and account operations.",
                 "Rotate at developer.squareup.com. Keep tokens server-side."
             ),
+            // ── Firebase database URL ─────────────────────────────────────
+            r!(
+                r"https://[a-z0-9-]+\.firebaseio\.com",
+                Severity::Medium, VulnCategory::SensitiveDataExposure,
+                "Firebase Database URL Exposed",
+                "A Firebase Realtime DB URL is exposed; with lax rules it allows direct data read/write.",
+                "Verify Firebase security rules deny public access. Keep the URL out of shipped client config where possible."
+            ),
+            // ── Algolia admin key ─────────────────────────────────────────
+            r!(
+                r#"(?i)algolia[a-z0-9_ -]{0,15}["'\s:=]{1,6}[a-f0-9]{32}"#,
+                Severity::High, VulnCategory::ApiKeyLeak,
+                "Algolia Admin API Key",
+                "Algolia admin key exposed — allows full index read/write/delete.",
+                "Use a search-only key on the client. Rotate the admin key; keep it server-side."
+            ),
         ]
     });
     &RULES
