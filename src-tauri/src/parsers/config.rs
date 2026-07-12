@@ -255,6 +255,30 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Cloudflare API token exposed. Allows DNS/zone/security changes at the token's scope.",
                 "Revoke at dash.cloudflare.com/profile/api-tokens. Use least-privilege scoped tokens."
             ),
+            // ── Discord bot token ─────────────────────────────────────────
+            r!(
+                r"[MNO][A-Za-z\d_-]{23}\.[A-Za-z\d_-]{6}\.[A-Za-z\d_-]{27,}",
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "Discord Bot Token",
+                "Discord bot token exposed. Grants full control of the bot and its servers.",
+                "Reset the token in the Discord developer portal. Store in an environment variable."
+            ),
+            // ── Shopify access token ──────────────────────────────────────
+            r!(
+                r"shpat_[a-fA-F0-9]{32}",
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "Shopify Access Token",
+                "Shopify private/admin API access token exposed. Allows store data and order access.",
+                "Revoke in the Shopify admin (Apps). Store server-side only."
+            ),
+            // ── Square access token ───────────────────────────────────────
+            r!(
+                r"sq0atp-[0-9A-Za-z_\-]{22}",
+                Severity::High, VulnCategory::ApiKeyLeak,
+                "Square Access Token",
+                "Square OAuth/production access token exposed. Allows payment and account operations.",
+                "Rotate at developer.squareup.com. Keep tokens server-side."
+            ),
         ]
     });
     &RULES
