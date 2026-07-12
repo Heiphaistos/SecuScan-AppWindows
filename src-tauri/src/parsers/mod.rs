@@ -26,6 +26,23 @@ pub fn filter_long_lines(text: &str, max_len: usize) -> Option<String> {
     }
 }
 
+/// True if the line is a pure comment (leading comment marker only).
+/// Used by code parsers (sast/script) to drop findings on non-executed lines,
+/// cutting false positives. NOT used for secret/config scanning — a commented
+/// secret is still a real leak in version control.
+pub fn is_comment_line(line: &str) -> bool {
+    let t = line.trim_start();
+    t.starts_with("//")
+        || t.starts_with('#') && !t.starts_with("#!")   // shebang is not a comment finding, but keep exec intent off
+        || t.starts_with("/*")
+        || t.starts_with("<!--")
+        || t.starts_with("::")
+        || {
+            let lower = t.get(..4).map(|s| s.to_ascii_lowercase());
+            lower.as_deref() == Some("rem ")
+        }
+}
+
 /// Extract context lines around a match.
 pub fn context_snippet(lines: &[&str], line_idx: usize, context: usize) -> String {
     let start = line_idx.saturating_sub(context);

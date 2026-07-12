@@ -143,6 +143,70 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Application-level signing or secret key hardcoded in config.",
                 "Rotate key. Store in environment variable or secrets manager."
             ),
+            // ── Slack bot / app token ─────────────────────────────────────
+            r!(
+                r"xox[baprs]-[0-9A-Za-z-]{10,}",
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "Slack Bot / App Token",
+                "Slack token (xoxb/xoxa/xoxp/xoxr/xoxs) exposed. Grants workspace API access.",
+                "Revoke in Slack app settings. Store in a secrets manager."
+            ),
+            // ── GitLab PAT ────────────────────────────────────────────────
+            r!(
+                r"glpat-[0-9A-Za-z_\-]{20,}",
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "GitLab Personal Access Token",
+                "GitLab PAT exposed. Grants repo/API access at the token's scope.",
+                "Revoke at gitlab.com/-/profile/personal_access_tokens. Use CI/CD variables."
+            ),
+            // ── Telegram bot token ────────────────────────────────────────
+            r!(
+                r"[0-9]{8,10}:AA[0-9A-Za-z_\-]{32,}",
+                Severity::High, VulnCategory::ApiKeyLeak,
+                "Telegram Bot Token",
+                "Telegram bot API token exposed. Allows full control of the bot.",
+                "Revoke via @BotFather (/revoke). Store token in environment variable."
+            ),
+            // ── SendGrid ──────────────────────────────────────────────────
+            r!(
+                r"SG\.[0-9A-Za-z_\-]{22}\.[0-9A-Za-z_\-]{43}",
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "SendGrid API Key",
+                "SendGrid API key exposed. Allows sending email as the account (phishing risk).",
+                "Revoke at app.sendgrid.com. Store in secrets manager."
+            ),
+            // ── Twilio ────────────────────────────────────────────────────
+            r!(
+                r"SK[0-9a-fA-F]{32}",
+                Severity::High, VulnCategory::ApiKeyLeak,
+                "Twilio API Key SID",
+                "Twilio API key SID exposed. Combined with secret, allows SMS/voice billing abuse.",
+                "Rotate at console.twilio.com. Store credentials server-side only."
+            ),
+            // ── npm token ─────────────────────────────────────────────────
+            r!(
+                r"npm_[0-9A-Za-z]{36}",
+                Severity::Critical, VulnCategory::ApiKeyLeak,
+                "npm Access Token",
+                "npm automation/publish token exposed. Allows package publish (supply-chain risk).",
+                "Revoke at npmjs.com/settings/tokens. Use CI secrets."
+            ),
+            // ── Google OAuth client secret ────────────────────────────────
+            r!(
+                r"[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com",
+                Severity::High, VulnCategory::ApiKeyLeak,
+                "Google OAuth Client ID",
+                "Google OAuth client identifier exposed; if paired with client secret, enables token issuance.",
+                "Restrict the client in GCP console. Keep client secret server-side."
+            ),
+            // ── Hardcoded HS256 JWT secret ────────────────────────────────
+            r!(
+                r#"(?i)(jwt[_-]?secret|jwt[_-]?key|token[_-]?secret)\s*[=:]\s*["'][^"']{8,}["']"#,
+                Severity::High, VulnCategory::HardcodedSecret,
+                "Hardcoded JWT Signing Secret",
+                "JWT signing secret hardcoded. Anyone with it can forge valid tokens for any user.",
+                "Move to environment variable. Rotate the secret and invalidate existing tokens."
+            ),
         ]
     });
     &RULES
