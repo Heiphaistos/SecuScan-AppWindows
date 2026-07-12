@@ -367,6 +367,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "A credential/token is passed in a URL query string. URLs are logged (server logs, proxies, browser history, Referer header) — the secret leaks into all of them.",
                 "Send secrets in the request body or an Authorization header, never in the query string."
             ),
+            // ── Cloud metadata endpoint access ────────────────────────────
+            r!(
+                r#"(?i)(169\.254\.169\.254|metadata\.google\.internal|metadata/instance|/latest/meta-data/|/computeMetadata/)"#,
+                Severity::Medium, VulnCategory::InsecureConfiguration,
+                "Cloud Metadata Endpoint Access",
+                "Access to the cloud instance metadata service (169.254.169.254 / metadata.google.internal). If reachable via SSRF it leaks temporary cloud credentials and IAM tokens.",
+                "Require IMDSv2 (hop limit + session token). Never proxy user-controlled URLs to the metadata IP; block 169.254.169.254 egress from app code."
+            ),
         ]
     });
     &RULES
