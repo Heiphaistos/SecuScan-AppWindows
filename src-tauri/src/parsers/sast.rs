@@ -351,6 +351,14 @@ fn get_rules() -> &'static Vec<Rule> {
                 "A request uses gopher://, dict://, file:// or ftp:// — schemes abused for SSRF pivoting and local file read.",
                 "Restrict outbound requests to http(s) and an allowlist of hosts. Reject non-http schemes."
             ),
+            // ── CORS origin reflection ────────────────────────────────────
+            r!(
+                r#"(?i)(Access-Control-Allow-Origin[^\n]{0,40}(req\.headers\.origin|request\.headers\[.origin|origin\(\))|set_header\s*\(\s*["']Access-Control-Allow-Origin["']\s*,\s*[^)]{0,20}origin)"#,
+                Severity::High, VulnCategory::CorsMisconfiguration,
+                "CORS — Origin Reflection",
+                "The request Origin is echoed back into Access-Control-Allow-Origin. With credentials this is effectively `*`, letting any site make authenticated cross-origin requests.",
+                "Reflect only origins from an explicit allowlist. Never echo the raw Origin header when credentials are allowed."
+            ),
         ]
     });
     &RULES
