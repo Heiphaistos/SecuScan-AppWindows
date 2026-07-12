@@ -175,6 +175,102 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Redirect destination derived from user input without validation.",
                 "Validate redirect URL against a whitelist of allowed domains."
             ),
+            // ── SSRF ──────────────────────────────────────────────────────
+            r!(
+                r#"(?i)(requests\.(get|post|put)|urllib\.request\.urlopen|fetch|axios\.(get|post)|http\.get|httpclient\.get)\s*\(\s*[^)]{0,40}(req\.(query|params|body)|request\.(args|form|get|post)|\$_(GET|POST|REQUEST))"#,
+                Severity::High, VulnCategory::InsecureConfiguration,
+                "SSRF — Server-side request to user-controlled URL",
+                "HTTP client fetches a URL derived from user input. Attacker can reach internal services (169.254.169.254, localhost, cloud metadata).",
+                "Whitelist allowed hosts/schemes. Block private IP ranges (10/8, 172.16/12, 192.168/16, 169.254/16) and metadata endpoints."
+            ),
+            // ── SSTI ──────────────────────────────────────────────────────
+            r!(
+                r#"(?i)(render_template_string|env\.from_string|new\s+Function)\s*\(\s*[^)]{0,40}(\+|\$\{|%s|\{\{|f["'])"#,
+                Severity::Critical, VulnCategory::ArbitraryCodeExecution,
+                "SSTI — Server-Side Template Injection",
+                "User input concatenated into a template string. Leads to RCE in Jinja2/Twig/Handlebars/Freemarker.",
+                "Never build templates from user input. Pass data as template variables, not as template source."
+            ),
+            // ── XXE ───────────────────────────────────────────────────────
+            r!(
+                r#"(?i)(libxml_disable_entity_loader\s*\(\s*false|resolve_entities\s*=\s*True|noent\s*=\s*True|XMLParser\([^)]*resolve_entities|DocumentBuilderFactory[^;]{0,80}(?!.*disallow-doctype))"#,
+                Severity::High, VulnCategory::InsecureDeserialization,
+                "XXE — XML External Entity processing enabled",
+                "XML parser resolves external entities, enabling local file disclosure and SSRF via crafted DTD.",
+                "Disable DTD/external entities: setFeature('disallow-doctype-decl', true) or defusedxml (Python)."
+            ),
+            // ── NoSQL Injection ───────────────────────────────────────────
+            r!(
+                r#"(?i)(find|findone|update|deleteone|deletemany)\s*\(\s*\{[^}]{0,60}(req\.(body|query|params)|\$where)"#,
+                Severity::High, VulnCategory::SqlInjection,
+                "NoSQL Injection — User input in query object",
+                "Raw user input placed into a MongoDB query object. Operators like $ne/$gt/$where bypass authentication.",
+                "Cast/validate input types. Reject query operators from user input. Enforce an ODM schema."
+            ),
+            // ── LDAP Injection ────────────────────────────────────────────
+            r!(
+                r#"(?i)(search|bind)\s*\([^)]{0,60}(\(uid=|\(cn=|\(&)[^)]{0,40}(\+|\$\{|%s|f["'])"#,
+                Severity::High, VulnCategory::CommandInjection,
+                "LDAP Injection — Filter built from user input",
+                "LDAP filter concatenated with user input allows authentication bypass and directory data extraction.",
+                "Escape LDAP special characters (RFC 4515) or use parameterized filters."
+            ),
+            // ── JWT misconfig ─────────────────────────────────────────────
+            r!(
+                r#"(?i)(algorithms\s*[:=]\s*\[?\s*["']none["']|verify_signature\s*[:=]\s*False|jwt\.decode\([^)]{0,80}verify\s*=\s*False)"#,
+                Severity::Critical, VulnCategory::InsecureConfiguration,
+                "JWT — Signature verification disabled / alg:none",
+                "JWT accepted without verifying the signature (alg:none or verify=false). Attacker forges arbitrary tokens.",
+                "Always verify the signature with a fixed algorithm allowlist (HS256/RS256). Never accept 'none'."
+            ),
+            // ── Prototype Pollution ───────────────────────────────────────
+            r!(
+                r#"(?i)(object\.assign|_\.merge|\bmerge|deepmerge|extend)\s*\(\s*[^)]{0,40}(req\.(body|query|params)|JSON\.parse)"#,
+                Severity::Medium, VulnCategory::InsecureConfiguration,
+                "Prototype Pollution — Unsafe merge of user input",
+                "Deep-merging attacker-controlled objects can pollute Object.prototype via __proto__/constructor.",
+                "Reject __proto__/constructor keys. Use Map or a hardened merge (lodash >= 4.17.21)."
+            ),
+            // ── Debug mode in production ───────────────────────────────────
+            r!(
+                r#"(?i)(app\.run\([^)]{0,60}debug\s*=\s*True|\bDEBUG\s*[:=]\s*True|FLASK_DEBUG\s*=\s*1|django\.conf.*DEBUG\s*=\s*True)"#,
+                Severity::Medium, VulnCategory::InsecureConfiguration,
+                "Debug Mode Enabled",
+                "Framework debug mode exposes stack traces and an interactive console (Werkzeug RCE).",
+                "Disable debug in production. Set DEBUG=False / NODE_ENV=production."
+            ),
+            // ── Disabled TLS verification ──────────────────────────────────
+            r!(
+                r#"(?i)(verify\s*=\s*False|rejectUnauthorized\s*:\s*false|CURLOPT_SSL_VERIFYPEER\s*,\s*(0|false)|InsecureSkipVerify\s*:\s*true|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0)"#,
+                Severity::High, VulnCategory::InsecureConfiguration,
+                "TLS Certificate Verification Disabled",
+                "TLS/SSL certificate validation turned off. Enables man-in-the-middle attacks.",
+                "Never disable certificate verification. Fix the trust store / CA bundle instead."
+            ),
+            // ── Zip Slip ───────────────────────────────────────────────────
+            r!(
+                r#"(?i)(extractall\s*\(|\.getNextEntry\s*\(|tarfile\.extract)"#,
+                Severity::Medium, VulnCategory::PathTraversal,
+                "Zip Slip — Archive extraction without path validation",
+                "Extracting archive entries without validating names allows writing outside the target dir (../).",
+                "Validate each entry path resolves inside the destination before writing."
+            ),
+            // ── Weak crypto parameters ─────────────────────────────────────
+            r!(
+                r#"(?i)(createCipher\s*\(|IV\s*=\s*["'][0]{8,}|iv\s*=\s*bytes\(\s*\d+\s*\))"#,
+                Severity::Medium, VulnCategory::WeakCrypto,
+                "Static/Weak Crypto Parameters",
+                "Hardcoded/zero IV or deprecated createCipher (no IV). Weakens or breaks encryption.",
+                "Use a random IV per message (crypto.randomBytes / os.urandom). Prefer createCipheriv + AES-GCM."
+            ),
+            // ── XSS via disabled escaping ──────────────────────────────────
+            r!(
+                r#"(?i)(autoescape\s*=\s*False|\|\s*safe\b|mark_safe\s*\(|v-html\s*=)"#,
+                Severity::Medium, VulnCategory::Xss,
+                "XSS — Auto-escaping disabled / raw HTML binding",
+                "Template auto-escaping disabled or raw HTML bound (|safe, mark_safe, v-html). Renders unescaped user input.",
+                "Keep auto-escaping on. Sanitize with DOMPurify/bleach before marking content safe."
+            ),
         ]
     });
     &RULES
@@ -205,6 +301,7 @@ pub fn scan_source(path: &Path, content: &[u8]) -> Vec<Vulnerability> {
         for m in rule.pattern.find_iter(text) {
             if matches_for_rule >= 20 { break; }
             let line_idx = text[..m.start()].chars().filter(|&c| c == '\n').count();
+            if lines.get(line_idx).is_some_and(|l| super::is_comment_line(l)) { continue; }
             let snippet  = context_snippet(&lines, line_idx, 2);
             let matched  = m.as_str().chars().take(120).collect::<String>();
 
