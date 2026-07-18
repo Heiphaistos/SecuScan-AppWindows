@@ -1,6 +1,6 @@
 {
   "name": "secuscan-ai",
-  "version": "1.0.5",
+  "version": "1.1.1",
   "description": "SecuScan AI - Offensive & Defensive Security Scanner",
   "scripts": {
     "dev": "tauri dev",
