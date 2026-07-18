@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "SecuScan AI v1.0.0",
+        "title": "SecuScan AI",
         "width": 1400,
         "height": 900,
         "minWidth": 1100,
