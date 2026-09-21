@@ -66,7 +66,9 @@ def outil(nom):
 
 def chemins(v):
     nsis = os.path.join(RACINE, "src-tauri", "target", "release", "bundle", "nsis")
-    setup = os.path.join(nsis, "%s_%s_x64-setup.exe" % (PRODUIT.replace(" ", "_"), v))
+    # Le bundler NSIS garde le productName tel quel, espaces compris :
+    # "SecuScan AI_1.1.2_x64-setup.exe", pas "SecuScan_AI_...".
+    setup = os.path.join(nsis, "%s_%s_x64-setup.exe" % (PRODUIT, v))
     return {"setup": setup, "setup_sig": setup + ".sig"}
 
 
