@@ -8,6 +8,9 @@ const { invoke }  = window.__TAURI__.core;
 const { listen }  = window.__TAURI__.event;
 const { open, save } = window.__TAURI__.dialog;
 const { writeTextFile, BaseDirectory } = window.__TAURI__.fs;
+// Plugins de mise a jour. `withGlobalTauri` les expose sous window.__TAURI__ ;
+// ils sont absents en dehors d'un build Tauri, d'ou le garde-fou.
+const updaterApi = window.__TAURI__.updater;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let currentScan      = null;
@@ -47,6 +50,60 @@ async function init() {
   setupButtons();
   setupFilters();
   setupSettings();
+
+  // Verification silencieuse au demarrage : si le canal est injoignable,
+  // l'utilisateur ne voit rien et continue de travailler.
+  checkForUpdate(true);
+}
+
+// ─── Mise à jour automatique ──────────────────────────────────────────────────
+// Meme mecanique que Nitrite : le plugin officiel de Tauri lit un manifeste
+// signe sur secuscan-app.heiphaistos.org/maj/latest.json, telecharge
+// l'installeur NSIS leger, le lance, et arrete l'application lui-meme en
+// passant /R a NSIS pour qu'elle redemarre. Rien a relancer nous-memes.
+async function checkForUpdate(silencieux = true) {
+  if (!updaterApi) return false; // hors build Tauri : rien a remplacer
+
+  const status = $('statusUpdate');
+  if (!silencieux && status) status.textContent = 'Vérification…';
+
+  try {
+    const update = await updaterApi.check();
+    if (!update) {
+      if (!silencieux) {
+        if (status) status.textContent = 'À jour';
+        toast('SecuScan est à jour.');
+      }
+      return false;
+    }
+
+    if (status) status.textContent = `v${update.version} disponible`;
+    const notes = update.body ? `
+
+${update.body}` : '';
+    const accepte = await window.__TAURI__.dialog.ask(
+      `SecuScan ${update.version} est disponible (vous avez la ${update.currentVersion}).${notes}` +
+      `
+
+Voulez-vous la mettre à jour maintenant ? L'application redémarrera.`,
+      { title: 'Une nouvelle version est sortie', kind: 'info' },
+    );
+    if (!accepte) return false;
+
+    // Ne rend jamais la main : le plugin arrête l'application pour laisser
+    // l'installeur remplacer les fichiers, puis NSIS la relance.
+    await update.downloadAndInstall();
+    return true;
+  } catch (err) {
+    // Canal injoignable, serveur en panne, signature refusée : l'utilisateur
+    // continue de travailler avec la version qu'il a.
+    console.error('[maj] vérification impossible', err);
+    if (!silencieux) {
+      if (status) status.textContent = 'Échec';
+      toast(`Vérification impossible : ${err}`, true);
+    }
+    return false;
+  }
 }
 
 // ─── Drag & Drop ──────────────────────────────────────────────────────────────
@@ -382,6 +439,8 @@ async function exportReport(format) {
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 function setupSettings() {
+  $('btnCheckUpdate').addEventListener('click', () => checkForUpdate(false));
+
   $('btnCloseSettings').addEventListener('click', () => {
     $('settingsModal').classList.add('hidden');
   });

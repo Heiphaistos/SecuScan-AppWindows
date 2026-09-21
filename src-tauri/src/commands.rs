@@ -146,50 +146,79 @@ pub fn export_html(state: State<'_, AppState>) -> Result<String, String> {
     Ok(export::to_html(result))
 }
 
-/// Save report directly to disk (called after user picks path via save dialog).
-#[tauri::command]
-pub fn save_report_to_file(format: String, path: String, state: State<'_, AppState>) -> Result<(), String> {
-    // FIX H2 — Path traversal: restrict export to user home directory
-    let dest = std::path::PathBuf::from(&path);
-    let canonical_dest = dest.canonicalize()
-        .or_else(|_| {
-            // File may not exist yet — canonicalize parent directory instead
-            dest.parent()
-                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no parent dir"))
-                .and_then(|p| p.canonicalize())
-        })
-        .map_err(|e| format!("Chemin de destination invalide: {e}"))?;
+/// Canonicalise un chemin et vérifie qu'il reste sous le répertoire utilisateur.
+///
+/// `must_exist = false` : le fichier peut ne pas exister encore. On canonicalise
+/// alors le dossier parent puis on rattache le nom de fichier — renvoyer le parent
+/// seul ferait échouer le contrôle d'extension et écrirait sur un dossier.
+///
+/// Le home est canonicalisé lui aussi : sous Windows `canonicalize` renvoie un
+/// chemin verbatim (préfixe `\\?\`) que `USERPROFILE` n'a pas, et `starts_with`
+/// compare les préfixes tels quels — sans ça la comparaison est toujours fausse.
+fn canonical_under_home(
+    path: &std::path::Path,
+    must_exist: bool,
+) -> Result<std::path::PathBuf, String> {
+    let canonical = if must_exist {
+        path.canonicalize().map_err(|e| format!("Chemin invalide: {e}"))?
+    } else {
+        let parent = path
+            .parent()
+            .ok_or_else(|| "Chemin sans dossier parent".to_string())?
+            .canonicalize()
+            .map_err(|e| format!("Dossier de destination invalide: {e}"))?;
+        let name = path
+            .file_name()
+            .ok_or_else(|| "Nom de fichier manquant".to_string())?;
+        parent.join(name)
+    };
 
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .map(std::path::PathBuf::from)
-        .map_err(|_| "Impossible de déterminer le répertoire home".to_string())?;
+        .map_err(|_| "Impossible de déterminer le répertoire home".to_string())?
+        .canonicalize()
+        .map_err(|e| format!("Répertoire home invalide: {e}"))?;
 
-    if !canonical_dest.starts_with(&home) {
-        return Err("Le chemin d'export doit être dans le répertoire utilisateur".to_string());
+    if !canonical.starts_with(&home) {
+        return Err(format!(
+            "Accès refusé: {} hors du répertoire utilisateur",
+            canonical.display()
+        ));
     }
+
+    Ok(canonical)
+}
+
+/// Save report directly to disk (called after user picks path via save dialog).
+#[tauri::command]
+pub fn save_report_to_file(format: String, path: String, state: State<'_, AppState>) -> Result<(), String> {
+    // FIX H2 — Path traversal: restrict export to user home directory
+    let dest = canonical_under_home(std::path::Path::new(&path), false)?;
 
     // FIX VULN 2 — Whitelist extensions export (évite d'écrire dans un .exe/.bat/etc.)
     let allowed_export_exts = ["json", "csv", "md", "txt", "html"];
-    let dest_ext = canonical_dest.extension()
+    let dest_ext = dest.extension()
         .and_then(|e| e.to_str())
         .unwrap_or("");
     if !allowed_export_exts.contains(&dest_ext) {
         return Err(format!("Extension .{dest_ext} non autorisée pour l'export de rapport"));
     }
 
-    let scan = state.current_scan.lock().unwrap();
-    let result = scan.as_ref().ok_or("No scan result to export")?;
-    let content = match format.as_str() {
-        "json" => export::to_json(result)?,
-        "csv"  => export::to_csv(result),
-        "md"   => export::to_markdown(result),
-        "txt"  => export::to_txt(result),
-        "html" => export::to_html(result),
-        _      => return Err(format!("Unknown format: {format}")),
+    let content = {
+        let scan = state.current_scan.lock().unwrap();
+        let result = scan.as_ref().ok_or("No scan result to export")?;
+        match format.as_str() {
+            "json" => export::to_json(result)?,
+            "csv"  => export::to_csv(result),
+            "md"   => export::to_markdown(result),
+            "txt"  => export::to_txt(result),
+            "html" => export::to_html(result),
+            _      => return Err(format!("Unknown format: {format}")),
+        }
     };
     // FIX TOCTOU — écrire sur le chemin canonicalisé, pas sur &path (chemin original)
-    std::fs::write(&canonical_dest, content.as_bytes()).map_err(|e| e.to_string())
+    std::fs::write(&dest, content.as_bytes()).map_err(|e| e.to_string())
 }
 
 // ─── Key management commands ──────────────────────────────────────────────────
@@ -395,22 +424,8 @@ pub fn apply_patch(file_path: String, patched_content: String) -> Result<(), Str
         return Err("Chemin absolu requis".to_string());
     }
 
-    // Canonicalize to resolve symlinks and ..
-    let canonical = path.canonicalize()
-        .map_err(|e| format!("Chemin invalide: {e}"))?;
-
-    // Must be within user home directory
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .map(std::path::PathBuf::from)
-        .map_err(|_| "Impossible de déterminer le répertoire home".to_string())?;
-
-    if !canonical.starts_with(&home) {
-        return Err(format!(
-            "Accès refusé: {} hors du répertoire utilisateur",
-            canonical.display()
-        ));
-    }
+    // Canonicalize to resolve symlinks and .., and keep the file under $HOME
+    let canonical = canonical_under_home(&path, true)?;
 
     // Whitelist source code extensions
     let allowed_exts = [
@@ -434,4 +449,37 @@ pub fn apply_patch(file_path: String, patched_content: String) -> Result<(), Str
 #[tauri::command]
 pub fn get_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Régression : sous Windows `canonicalize` renvoie `\?\C:\...` alors que
+    /// `USERPROFILE` vaut `C:\Users\...`. Comparer les deux sans canonicaliser
+    /// le home rendait `starts_with` toujours faux et bloquait tout export.
+    /// Le chemin rendu doit aussi garder le nom de fichier, pas juste le dossier.
+    #[test]
+    fn dest_inexistante_sous_home_est_acceptee_avec_son_nom() {
+        let home = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .expect("home introuvable");
+        let dir = std::path::PathBuf::from(&home).join("secuscan_test_export");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let dest = dir.join("rapport.html");
+        assert!(!dest.exists(), "le fichier ne doit pas exister avant le test");
+
+        let out = canonical_under_home(&dest, false).expect("doit être accepté");
+        assert_eq!(out.file_name().unwrap(), "rapport.html");
+        assert_eq!(out.extension().and_then(|e| e.to_str()), Some("html"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn dest_hors_du_home_est_refusee() {
+        let dest = std::path::PathBuf::from(r"C:\Windows\System32\rapport.html");
+        assert!(canonical_under_home(&dest, false).is_err());
+    }
 }
