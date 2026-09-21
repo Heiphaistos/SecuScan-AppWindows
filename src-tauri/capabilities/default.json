@@ -2,7 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2",
   "identifier": "default",
   "description": "SecuScan AI default capability",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "dialog:default",
@@ -13,6 +15,8 @@
     "fs:allow-read-dir",
     "fs:allow-write-file",
     "fs:allow-mkdir",
-    "fs:allow-exists"
+    "fs:allow-exists",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

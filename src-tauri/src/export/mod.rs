@@ -35,10 +35,19 @@ pub fn to_csv(result: &ScanResult) -> String {
 }
 
 fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
-        format!("\"{}\"", s.replace('"', "\"\""))
+    // Injection de formule : Excel et LibreOffice exécutent une cellule qui
+    // commence par = + - @ ou une tabulation. Préfixer par une apostrophe la
+    // neutralise sans changer le texte affiché.
+    let guarded = if s.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{s}")
     } else {
         s.to_string()
+    };
+
+    if guarded.contains(',') || guarded.contains('"') || guarded.contains('\n') {
+        format!("\"{}\"", guarded.replace('"', "\"\""))
+    } else {
+        guarded
     }
 }
 
@@ -240,7 +249,7 @@ pub fn to_html(result: &ScanResult) -> String {
             .unwrap_or_default();
         let line_str = v.line_number.map(|l| format!(":{l}")).unwrap_or_default();
         let cwe_str  = v.cwe_id.as_deref()
-            .map(|c| format!(" <span class=\"cwe\">{}</span>", c))
+            .map(|c| format!(" <span class=\"cwe\">{}</span>", html_escape(c)))
             .unwrap_or_default();
 
         rows.push_str("<tr class=\"finding ");
