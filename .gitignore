@@ -24,3 +24,6 @@ desktop.ini
 
 # Tauri
 src-tauri/gen/
+
+# Dossier de preparation du canal de mise a jour (outils/publier.py)
+release/
