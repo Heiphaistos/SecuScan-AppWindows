@@ -106,6 +106,7 @@ fn dispatch_timed(path: PathBuf, data: Vec<u8>, cfg: ScanConfig) -> Vec<Vulnerab
     use std::sync::mpsc;
     use std::time::Duration;
 
+    let affiche = path.display().to_string();
     let (tx, rx) = mpsc::channel::<Vec<Vulnerability>>();
     std::thread::spawn(move || {
         let result = dispatch(&path, &data, &cfg);
@@ -114,8 +115,19 @@ fn dispatch_timed(path: PathBuf, data: Vec<u8>, cfg: ScanConfig) -> Vec<Vulnerab
 
     match rx.recv_timeout(Duration::from_secs(10)) {
         Ok(vulns) => vulns,
-        Err(_) => {
-            log::warn!("File scan timed out — skipped");
+        // `Disconnected` = le fil est mort sans repondre, donc il a panique.
+        // Le confondre avec un vrai timeout masquait une regex invalide qui
+        // faisait paniquer la compilation des regles : le scanner rendait
+        // « 0 vulnerabilite » sur tout, sans le moindre signe.
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            log::error!(
+                "Analyseur en panique sur {affiche} — regles probablement \
+                 invalides, aucun resultat pour ce fichier"
+            );
+            vec![]
+        }
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            log::warn!("File scan timed out — skipped: {affiche}");
             vec![]
         }
     }
