@@ -54,3 +54,24 @@ pub fn context_snippet(lines: &[&str], line_idx: usize, context: usize) -> Strin
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+#[cfg(test)]
+mod tests_regles {
+    use std::path::Path;
+
+    /// Chaque analyseur compile ses regles paresseusement, avec `.expect()`.
+    /// Une regex invalide ne casse donc pas le build : elle fait paniquer le fil
+    /// d'analyse au premier fichier, et le scanner rend « 0 vulnerabilite » sur
+    /// tout sans rien signaler. C'est arrive avec trois motifs utilisant du
+    /// look-ahead, que le crate `regex` ne supporte pas.
+    ///
+    /// Ce test force la compilation des quatre jeux de regles.
+    #[test]
+    fn tous_les_analyseurs_compilent_leurs_regles() {
+        let chemin = Path::new("echantillon.txt");
+        super::sast::scan_source(Path::new("echantillon.py"), b"x = 1\n");
+        super::script::scan_script(Path::new("echantillon.ps1"), b"Write-Output 1\n");
+        super::config::scan_config(chemin, b"cle = valeur\n");
+        super::binary::scan_binary(Path::new("echantillon.exe"), b"MZ");
+    }
+}

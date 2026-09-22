@@ -57,7 +57,11 @@ fn get_rules() -> &'static Vec<Rule> {
             ),
             // ── XSS ─────────────────────────────────────────────────────
             r!(
-                r#"\.innerHTML\s*[+]?=\s*(?!["'`][^"'`]*["'`]\s*[;,])"#,
+                // Le crate `regex` ne connait pas le look-ahead : formuler en
+                // positif ce que `(?!…)` exprimait en negatif. Est dangereuse une
+                // affectation dont la valeur ne commence pas par un guillemet
+                // (variable, appel, concatenation), ou un gabarit interpole.
+                r#"\.innerHTML\s*[+]?=\s*(?:[^"'`\s;]|`[^`]*\$\{)"#,
                 Severity::High, VulnCategory::Xss,
                 "XSS — Unsafe innerHTML assignment",
                 "Dynamic content written to innerHTML without sanitization.",
@@ -71,7 +75,10 @@ fn get_rules() -> &'static Vec<Rule> {
                 "Avoid document.write(). Use DOM manipulation APIs instead."
             ),
             r!(
-                r#"(?i)eval\s*\(\s*(?!["'`])[^)]+\)"#,
+                // Sans look-ahead : est dangereuse une evaluation dont
+                // l'argument ne commence pas par un guillemet, donc une
+                // expression construite plutot qu'une chaine litterale.
+                r#"(?i)eval\s*\(\s*[^"'`\s)][^)]*\)"#,
                 Severity::Critical, VulnCategory::Xss,
                 "XSS / RCE — eval() with dynamic expression",
                 "eval() executes arbitrary JS. If input is attacker-controlled → RCE in browser.",
@@ -193,7 +200,7 @@ fn get_rules() -> &'static Vec<Rule> {
             ),
             // ── XXE ───────────────────────────────────────────────────────
             r!(
-                r#"(?i)(libxml_disable_entity_loader\s*\(\s*false|resolve_entities\s*=\s*True|noent\s*=\s*True|XMLParser\([^)]*resolve_entities|DocumentBuilderFactory[^;]{0,80}(?!.*disallow-doctype))"#,
+                r#"(?i)(libxml_disable_entity_loader\s*\(\s*false|resolve_entities\s*=\s*True|noent\s*=\s*True|XMLParser\([^)]*resolve_entities|DocumentBuilderFactory)"#,
                 Severity::High, VulnCategory::InsecureDeserialization,
                 "XXE — XML External Entity processing enabled",
                 "XML parser resolves external entities, enabling local file disclosure and SSRF via crafted DTD.",
@@ -444,4 +451,38 @@ pub fn handles_extension(ext: &str) -> bool {
         "c"    | "h"   | "vue" | "svelte" | "kt" | "swift" | "scala" |
         "lua"  | "pl"  | "r"   | "ex" | "exs"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Un fichier Python aux failles evidentes doit produire des findings.
+    /// Un scan qui ne trouve rien sur ce cas signale un moteur muet, pas un
+    /// projet sain.
+    #[test]
+    fn un_python_vulnerable_produit_des_findings() {
+        let source = concat!(
+            "import hashlib\n",
+            "import sqlite3\n",
+            "\n",
+            "AWS_ACCESS_KEY = \"AKIAIOSFODNN7EXAMPLE\"\n",
+            "\n",
+            "def chercher(nom):\n",
+            "    conn = sqlite3.connect(\"app.db\")\n",
+            "    conn.execute(\"SELECT * FROM users WHERE name = '\" + nom + \"'\")\n",
+            "    return conn.fetchall()\n",
+            "\n",
+            "def empreinte(mdp):\n",
+            "    return hashlib.md5(mdp.encode()).hexdigest()\n",
+        );
+
+        let trouves = scan_source(Path::new("app.py"), source.as_bytes());
+        let titres: Vec<&str> = trouves.iter().map(|v| v.title.as_str()).collect();
+        assert!(
+            !trouves.is_empty(),
+            "aucune faille detectee sur un fichier qui en contient plusieurs"
+        );
+        println!("findings : {titres:?}");
+    }
 }
