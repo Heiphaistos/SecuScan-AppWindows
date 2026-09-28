@@ -44,7 +44,7 @@ pub async fn start_scan(
     let result = crate::engine::scanner::run_scan(path, cfg, app, cancelled).await?;
 
     // Cache result for export
-    *state.current_scan.lock().unwrap() = Some(result.clone());
+    *state.current_scan.lock().unwrap_or_else(|e| e.into_inner()) = Some(result.clone());
 
     Ok(result)
 }
@@ -64,7 +64,7 @@ pub async fn request_ai_fix(
 ) -> Result<AiFixResult, String> {
     // Clone vulnerability BEFORE any await so MutexGuard is not held across await points.
     let vuln = {
-        let scan = state.current_scan.lock().unwrap();
+        let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
         let scan_result = scan.as_ref().ok_or("No active scan result")?;
         scan_result
             .vulnerabilities
@@ -97,7 +97,7 @@ pub fn build_clipboard_prompt(
     vuln_id: String,
     state:   State<'_, AppState>,
 ) -> Result<String, String> {
-    let scan = state.current_scan.lock().unwrap();
+    let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
     let scan_result = scan.as_ref().ok_or("No active scan result")?;
 
     let vuln = scan_result
@@ -113,35 +113,35 @@ pub fn build_clipboard_prompt(
 
 #[tauri::command]
 pub fn export_json(state: State<'_, AppState>) -> Result<String, String> {
-    let scan = state.current_scan.lock().unwrap();
+    let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
     let result = scan.as_ref().ok_or("No scan result to export")?;
     export::to_json(result)
 }
 
 #[tauri::command]
 pub fn export_csv(state: State<'_, AppState>) -> Result<String, String> {
-    let scan = state.current_scan.lock().unwrap();
+    let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
     let result = scan.as_ref().ok_or("No scan result to export")?;
     Ok(export::to_csv(result))
 }
 
 #[tauri::command]
 pub fn export_markdown(state: State<'_, AppState>) -> Result<String, String> {
-    let scan = state.current_scan.lock().unwrap();
+    let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
     let result = scan.as_ref().ok_or("No scan result to export")?;
     Ok(export::to_markdown(result))
 }
 
 #[tauri::command]
 pub fn export_txt(state: State<'_, AppState>) -> Result<String, String> {
-    let scan = state.current_scan.lock().unwrap();
+    let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
     let result = scan.as_ref().ok_or("No scan result to export")?;
     Ok(export::to_txt(result))
 }
 
 #[tauri::command]
 pub fn export_html(state: State<'_, AppState>) -> Result<String, String> {
-    let scan = state.current_scan.lock().unwrap();
+    let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
     let result = scan.as_ref().ok_or("No scan result to export")?;
     Ok(export::to_html(result))
 }
@@ -206,7 +206,7 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
     }
 
     let content = {
-        let scan = state.current_scan.lock().unwrap();
+        let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
         let result = scan.as_ref().ok_or("No scan result to export")?;
         match format.as_str() {
             "json" => export::to_json(result)?,
@@ -267,13 +267,43 @@ pub fn save_antigravity_endpoint(endpoint: String) -> Result<(), String> {
     let url = url::Url::parse(&endpoint)
         .map_err(|e| format!("URL invalide: {e}"))?;
 
-    let host = url.host_str().unwrap_or("");
-    let blocked_prefixes = ["localhost", "127.", "0.0.0.0", "10.", "192.168.", "172.16.", "::1", "169.254."];
-    if blocked_prefixes.iter().any(|b| host.starts_with(b) || host == b.trim_end_matches('.')) {
+    if url.host().map_or(true, is_blocked_host) {
         return Err("Les adresses locales/privées ne sont pas autorisées".to_string());
     }
 
     keystore::save_antigravity_endpoint(&endpoint)
+}
+
+/// Hôte interdit pour un endpoint sortant (anti-SSRF). `url` normalise déjà les IP
+/// (décimales, octales, crochets IPv6) en `Host::Ipv4/Ipv6`.
+fn is_blocked_host(host: url::Host<&str>) -> bool {
+    use std::net::Ipv4Addr;
+    fn v4(ip: Ipv4Addr) -> bool {
+        ip.is_private() || ip.is_loopback() || ip.is_link_local() || ip.is_unspecified()
+            || ip.is_broadcast() || (ip.octets()[0] == 100 && ip.octets()[1] & 0xc0 == 64) // 100.64/10 CGNAT
+    }
+    match host {
+        url::Host::Domain(d) => {
+            let d = d.trim_end_matches('.').to_ascii_lowercase();
+            d == "localhost" || d.ends_with(".localhost")
+        }
+        url::Host::Ipv4(ip) => v4(ip),
+        url::Host::Ipv6(ip) => {
+            let s0 = ip.segments()[0];
+            ip.is_loopback() || ip.is_unspecified()
+                || s0 & 0xfe00 == 0xfc00 // fc00::/7 ULA
+                || s0 & 0xffc0 == 0xfe80 // fe80::/10 link-local
+                || ip.to_ipv4_mapped().is_some_and(v4)
+        }
+    }
+}
+
+/// Racine canonique du dernier scan (None si aucun scan ou racine introuvable).
+fn scan_root(state: &AppState) -> Option<std::path::PathBuf> {
+    let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
+    scan.as_ref()
+        .map(|r| std::path::PathBuf::from(&r.target_path))
+        .and_then(|p| p.canonicalize().ok())
 }
 
 // ─── Batch AI Fix ─────────────────────────────────────────────────────────────
@@ -290,7 +320,7 @@ pub async fn batch_ai_fix(
 
     // Collect vulnerabilities from current scan
     let vulns = {
-        let scan = state.current_scan.lock().unwrap();
+        let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
         scan.as_ref()
             .ok_or("No active scan result")?
             .vulnerabilities
@@ -321,12 +351,7 @@ pub async fn batch_ai_fix(
     let mut patches: Vec<FilePatch> = Vec::new();
 
     // Chemin racine du scan — tous les fichiers doivent être dedans
-    let scan_root = {
-        let scan = state.current_scan.lock().unwrap();
-        scan.as_ref()
-            .map(|r| std::path::PathBuf::from(&r.target_path))
-            .and_then(|p| p.canonicalize().ok())
-    };
+    let scan_root = scan_root(&state);
 
     for (file_idx, (file_path, vuln_indices)) in by_file.iter().enumerate() {
         // FIX VULN 3 — Valider que le fichier est bien dans le répertoire scanné
@@ -415,9 +440,13 @@ pub async fn batch_ai_fix(
 
 /// Apply a single patch to disk (overwrite file with patched content).
 #[tauri::command]
-pub fn apply_patch(file_path: String, patched_content: String) -> Result<(), String> {
+pub fn apply_patch(file_path: String, patched_content: String, state: State<'_, AppState>) -> Result<(), String> {
+    write_patch(&file_path, &patched_content, scan_root(&state).as_deref())
+}
+
+fn write_patch(file_path: &str, patched_content: &str, scan_root: Option<&std::path::Path>) -> Result<(), String> {
     // FIX C1 — Path traversal: validate path before writing
-    let path = std::path::PathBuf::from(&file_path);
+    let path = std::path::PathBuf::from(file_path);
 
     // Must be absolute path
     if !path.is_absolute() {
@@ -426,6 +455,12 @@ pub fn apply_patch(file_path: String, patched_content: String) -> Result<(), Str
 
     // Canonicalize to resolve symlinks and .., and keep the file under $HOME
     let canonical = canonical_under_home(&path, true)?;
+
+    // Confiné à la racine du dernier scan, comme batch_ai_fix
+    let root = scan_root.ok_or("Aucun scan en cours : patch refusé")?;
+    if !canonical.starts_with(root) {
+        return Err("Chemin hors du répertoire scanné : patch refusé".to_string());
+    }
 
     // Whitelist source code extensions
     let allowed_exts = [
@@ -502,5 +537,41 @@ mod tests {
     fn dest_hors_du_home_est_refusee() {
         let dest = std::path::PathBuf::from(r"C:\Windows\System32\rapport.html");
         assert!(canonical_under_home(&dest, false).is_err());
+    }
+
+    #[test]
+    fn ssrf_blocks_private_and_ipv6_local() {
+        let blocked = |u: &str| is_blocked_host(url::Url::parse(u).unwrap().host().unwrap());
+        for u in ["https://localhost/", "https://127.0.0.1/", "https://2130706433/", "https://10.1.2.3/",
+                  "https://172.20.0.1/", "https://172.31.255.1/", "https://192.168.1.1/", "https://169.254.169.254/",
+                  "https://0.0.0.0/", "https://[::1]/", "https://[fd00::1]/", "https://[fe80::1]/",
+                  "https://[::ffff:127.0.0.1]/", "https://a.localhost/"] {
+            assert!(blocked(u), "{u} doit être bloqué");
+        }
+        for u in ["https://api.example.com/", "https://172.32.0.1/", "https://8.8.8.8/", "https://[2606:4700::1]/"] {
+            assert!(!blocked(u), "{u} doit passer");
+        }
+    }
+
+    #[test]
+    fn patch_confined_to_scan_root() {
+        let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).unwrap();
+        let base = std::path::PathBuf::from(&home).join("secuscan_test_patch");
+        let root = base.join("scan");
+        let outside = base.join("outside");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let inside_f = root.join("a.js");
+        let outside_f = outside.join("b.js");
+        std::fs::write(&inside_f, "x").unwrap();
+        std::fs::write(&outside_f, "x").unwrap();
+        let croot = root.canonicalize().unwrap();
+
+        assert!(write_patch(outside_f.to_str().unwrap(), "evil", Some(&croot)).is_err());
+        assert!(write_patch(inside_f.to_str().unwrap(), "ok", None).is_err());
+        write_patch(inside_f.to_str().unwrap(), "ok", Some(&croot)).unwrap();
+        assert_eq!(std::fs::read_to_string(&outside_f).unwrap(), "x");
+        assert_eq!(std::fs::read_to_string(&inside_f).unwrap(), "ok");
+        std::fs::remove_dir_all(&base).ok();
     }
 }
