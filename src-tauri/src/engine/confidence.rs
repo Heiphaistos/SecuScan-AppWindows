@@ -159,7 +159,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
     }
     if matches!(v.category, VulnCategory::MissingAslr | VulnCategory::MissingDep) || has("Control Flow Guard") {
         return kb(
-            "Le programme n'active pas une protection mémoire de Windows (ASLR, DEP ou CFG).",
+            "Le programme n'active pas une protection mémoire de Windows (ASLR, DEP ou CFG). Le pourcentage indique que l'option manque vraiment, PAS un risque de virus.",
             "Si une faille existe dans ce programme, elle sera plus facile à exploiter.",
             "Ce n'est PAS un virus : c'est une option de compilation. Les anciens programmes et certains compilateurs ne l'activent pas par défaut.",
             90,
