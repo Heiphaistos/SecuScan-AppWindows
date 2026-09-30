@@ -41,7 +41,16 @@ pub async fn start_scan(
     let cfg       = config.unwrap_or_default();
     let cancelled = state.scan_cancelled.clone();
 
-    let result = crate::engine::scanner::run_scan(path, cfg, app, cancelled).await?;
+    let mut result = crate::engine::scanner::run_scan(path, cfg, app, cancelled).await?;
+
+    // Réputation en ligne des binaires/scripts (empreintes seulement), puis
+    // probabilité vrai problème / faux positif de chaque résultat.
+    if !state.scan_cancelled.load(Ordering::Relaxed) {
+        let intel = crate::engine::intel::IntelConfig::load();
+        crate::engine::reputation::enrich(&mut result, &intel).await;
+    }
+    crate::engine::confidence::apply(&mut result);
+    result.finalize();
 
     // Cache result for export
     *state.current_scan.lock().unwrap_or_else(|e| e.into_inner()) = Some(result.clone());
@@ -197,7 +206,7 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
     let dest = canonical_under_home(std::path::Path::new(&path), false)?;
 
     // FIX VULN 2 — Whitelist extensions export (évite d'écrire dans un .exe/.bat/etc.)
-    let allowed_export_exts = ["json", "csv", "md", "txt", "html"];
+    let allowed_export_exts = ["json", "csv", "md", "txt", "html", "pdf"];
     let dest_ext = dest.extension()
         .and_then(|e| e.to_str())
         .unwrap_or("");
@@ -209,16 +218,17 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
         let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
         let result = scan.as_ref().ok_or("No scan result to export")?;
         match format.as_str() {
-            "json" => export::to_json(result)?,
-            "csv"  => export::to_csv(result),
-            "md"   => export::to_markdown(result),
-            "txt"  => export::to_txt(result),
-            "html" => export::to_html(result),
+            "json" => export::to_json(result)?.into_bytes(),
+            "csv"  => export::to_csv(result).into_bytes(),
+            "md"   => export::to_markdown(result).into_bytes(),
+            "txt"  => export::to_txt(result).into_bytes(),
+            "html" => export::to_html(result).into_bytes(),
+            "pdf"  => export::to_pdf(result),
             _      => return Err(format!("Unknown format: {format}")),
         }
     };
     // FIX TOCTOU — écrire sur le chemin canonicalisé, pas sur &path (chemin original)
-    std::fs::write(&dest, content.as_bytes()).map_err(|e| e.to_string())
+    std::fs::write(&dest, content).map_err(|e| e.to_string())
 }
 
 // ─── Key management commands ──────────────────────────────────────────────────
@@ -232,20 +242,26 @@ pub fn save_api_key(provider: String, key: String) -> Result<(), String> {
     if key.len() > 4096 {
         return Err("API key trop longue (max 4096 caractères)".to_string());
     }
-    // Whitelist providers autorisés
-    if !matches!(provider.as_str(), "claude" | "gemini" | "antigravity") {
+    // Whitelist providers autorisés (LLM + bases de réputation)
+    if !keystore::KEY_NAMES.contains(&provider.as_str()) {
         return Err(format!("Provider inconnu: {provider}"));
     }
-    keystore::save_key(&provider, &key)
+    keystore::save_key(&provider, key.trim())
 }
 
 #[tauri::command]
 pub fn delete_api_key(provider: String) -> Result<(), String> {
     // FIX VULN 6 — Whitelist providers avant d'appeler le keystore
-    if !matches!(provider.as_str(), "claude" | "gemini" | "antigravity") {
+    if !keystore::KEY_NAMES.contains(&provider.as_str()) {
         return Err("Provider inconnu".to_string());
     }
     keystore::delete_key(&provider)
+}
+
+/// Active / coupe les sources de réputation gratuites sans clé (Team Cymru, CIRCL).
+#[tauri::command]
+pub fn set_intel_free_lookups(enabled: bool) -> Result<(), String> {
+    keystore::set_intel_free_lookups(enabled)
 }
 
 #[tauri::command]

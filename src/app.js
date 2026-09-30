@@ -17,6 +17,7 @@ let currentScan      = null;
 let activeVulnId     = null;
 let activeFilter     = 'all';
 let searchQuery      = '';
+let hideLikelyFp     = false;
 let progressUnlisten = null;
 let scanStartTime    = null;
 let timerInterval    = null;
@@ -43,7 +44,9 @@ async function init() {
   try {
     const ver = await invoke('get_version');
     $('appVersion').textContent = `v${ver}`;
-  } catch (_) {}
+  } catch (err) {
+    console.error('[version] lecture impossible', err);
+  }
 
   await refreshKeyStatus();
   setupDragDrop();
@@ -148,6 +151,7 @@ function setupButtons() {
   $('btnExportMd').addEventListener('click', () => exportReport('md'));
   $('btnExportTxt').addEventListener('click', () => exportReport('txt'));
   $('btnExportHtml').addEventListener('click', () => exportReport('html'));
+  $('btnExportPdf').addEventListener('click', () => exportReport('pdf'));
 
   $('btnGetFix').addEventListener('click', requestAiFix);
   $('btnCopyPrompt').addEventListener('click', copyAiPrompt);
@@ -172,6 +176,11 @@ function setupFilters() {
 
   $('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
+    renderVulnList();
+  });
+
+  $('hideLikelyFp').addEventListener('change', e => {
+    hideLikelyFp = e.target.checked;
     renderVulnList();
   });
 }
@@ -259,6 +268,7 @@ function showResults() {
   $('numInfo').textContent     = s.info;
   $('numFiles').textContent    = currentScan.scanned_files;
 
+  renderAssessment(currentScan);
   renderVulnList();
 }
 
@@ -270,6 +280,9 @@ function resetToScanZone() {
   statsRow.classList.add('hidden');
   filterBar.classList.add('hidden');
   resultsContainer.classList.add('hidden');
+  $('assessPanel').classList.add('hidden');
+  hideLikelyFp = false;
+  $('hideLikelyFp').checked = false;
   progressFill.style.width     = '0%';
   $('progressPct').textContent = '0%';
   $('elapsedTime').textContent = '00:00:00';
@@ -285,6 +298,7 @@ function renderVulnList() {
 
   const vulns = currentScan.vulnerabilities.filter(v => {
     if (activeFilter !== 'all' && v.severity !== activeFilter) return false;
+    if (hideLikelyFp && v.confidence < LIKELY_FP) return false;
     if (searchQuery) {
       const hay = `${v.title} ${v.file_path} ${v.cwe_id || ''} ${v.description}`.toLowerCase();
       if (!hay.includes(searchQuery)) return false;
@@ -314,11 +328,9 @@ function renderVulnList() {
         <span class="sev-badge ${v.severity}">${v.severity.toUpperCase()}</span>
       </div>
       <div class="vuln-item-file">${escHtml(fileShort)}${line}</div>
-      <div class="vuln-item-meta">
-        ${v.cwe_id || ''}
-        ${v.fp_hint ? '<span class="fp-badge" title="' + escHtml(v.fp_hint) + '">⚠️ FP?</span>' : ''}
-      </div>
+      <div class="vuln-item-meta">${escHtml(v.cwe_id || '')}</div>
     `;
+    el.querySelector('.vuln-item-meta').appendChild(confidencePill(v));
 
     el.addEventListener('click', () => selectVuln(v));
     vulnList.appendChild(el);
@@ -347,14 +359,8 @@ function selectVuln(v) {
   $('detailSnippet').textContent = v.code_snippet || v.matched_pattern || '(no code context)';
   $('detailFix').textContent   = v.remediation;
 
-  // False-positive hint
-  const fpBox = $('detailFpHint');
-  if (v.fp_hint) {
-    fpBox.textContent = '⚠️ ' + v.fp_hint;
-    fpBox.classList.remove('hidden');
-  } else {
-    fpBox.classList.add('hidden');
-  }
+  // Probabilité réel / faux positif, explications et calcul
+  renderConfidence(v);
 
   // Reset AI panel
   $('aiResult').classList.add('hidden');
@@ -415,6 +421,7 @@ const EXPORT_META = {
   md:   { cmd: 'export_markdown', ext: 'md',   label: 'Markdown', filter: 'Markdown Files' },
   txt:  { cmd: 'export_txt',      ext: 'txt',  label: 'Text',     filter: 'Text Files'     },
   html: { cmd: 'export_html',     ext: 'html', label: 'HTML',     filter: 'HTML Files'     },
+  pdf:  { ext: 'pdf', label: 'PDF', filter: 'PDF Files' },
 };
 
 async function exportReport(format) {
@@ -478,6 +485,16 @@ function setupSettings() {
     });
   });
 
+  $('settingFreeLookups').addEventListener('change', async e => {
+    try {
+      await invoke('set_intel_free_lookups', { enabled: e.target.checked });
+      toast(e.target.checked ? 'Sources gratuites activées' : 'Sources gratuites coupées');
+    } catch (err) {
+      toast(`Erreur : ${err}`, true);
+      await refreshKeyStatus();
+    }
+  });
+
   $('btnSaveEndpoint').addEventListener('click', async () => {
     const ep = $('endpointAntigravity').value.trim();
     if (!ep) return toast('Enter endpoint URL');
@@ -503,7 +520,10 @@ async function refreshKeyStatus() {
     if (status.antigravity_endpoint) {
       $('endpointAntigravity').value = status.antigravity_endpoint;
     }
-  } catch (_) {}
+    renderIntelKeyStatus(status);
+  } catch (err) {
+    console.error('[réglages] état des clés illisible', err);
+  }
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────

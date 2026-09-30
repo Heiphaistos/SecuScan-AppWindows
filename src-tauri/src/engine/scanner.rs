@@ -10,7 +10,7 @@ use rayon::prelude::*;
 use tauri::{AppHandle, Emitter};
 use walkdir::{DirEntry, WalkDir};
 
-use crate::models::{ScanConfig, ScanProgress, ScanResult, Vulnerability};
+use crate::models::{IntelCandidate, ScanConfig, ScanProgress, ScanResult, Vulnerability};
 use crate::parsers::{binary, config, sast, script};
 
 const MAX_CHUNK_BYTES: usize = 10 * 1024 * 1024; // 10 MB streaming chunks for large files
@@ -133,6 +133,29 @@ fn dispatch_timed(path: PathBuf, data: Vec<u8>, cfg: ScanConfig) -> Vec<Vulnerab
     }
 }
 
+// ─── Candidats à la réputation en ligne ──────────────────────────────────────
+
+/// Exécutables et scripts : les seuls fichiers dont l'empreinte a un sens pour
+/// les bases de malwares (un fichier source unique n'y figurera jamais).
+fn intel_candidate(path: &Path, data: &[u8]) -> Option<IntelCandidate> {
+    use sha2::{Digest, Sha256};
+    let ext = file_extension(path).to_lowercase();
+    let is_binary = binary::handles_extension(&ext)
+        || matches!(ext.as_str(), "elf" | "so" | "bin" | "msi" | "jar" | "apk" | "dylib")
+        || data.starts_with(b"MZ")
+        || data.starts_with(b"\x7fELF");
+    let is_script = script::handles_extension(&ext) || matches!(ext.as_str(), "js" | "vbs" | "hta" | "lnk");
+    if !(is_binary || is_script) || data.is_empty() {
+        return None;
+    }
+    Some(IntelCandidate {
+        file_path: path.display().to_string(),
+        sha256: hex::encode(Sha256::digest(data)),
+        md5: format!("{:x}", md5::compute(data)),
+        is_binary,
+    })
+}
+
 // ─── Public entry ─────────────────────────────────────────────────────────────
 
 pub async fn run_scan(
@@ -159,32 +182,49 @@ pub async fn run_scan(
         return Err("max_file_size_mb doit être entre 1 et 500".to_string());
     }
 
+    let emit = |p: ScanProgress| {
+        // best-effort — ignore error if window closed
+        let _ = app.emit("scan:progress", p);
+    };
+    let result = scan_tree(&root, &target, &cfg, &cancelled, &emit);
+
+    // Emit completion
+    let _ = app.emit("scan:complete", &result.stats);
+
+    Ok(result)
+}
+
+/// Analyse l'arbre `root` (sans Tauri : testable). `progress` reçoit l'avancement.
+pub fn scan_tree(
+    root: &Path,
+    target: &str,
+    cfg: &ScanConfig,
+    cancelled: &AtomicBool,
+    progress: &(dyn Fn(ScanProgress) + Sync),
+) -> ScanResult {
     // Collect file list first (for accurate progress)
-    let entries: Vec<PathBuf> = WalkDir::new(&root)
+    let entries: Vec<PathBuf> = WalkDir::new(root)
         .follow_links(false)
         .into_iter()
-        .filter_entry(|e| !should_skip(e, &cfg))
+        .filter_entry(|e| !should_skip(e, cfg))
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .map(|e| e.into_path())
         .collect();
 
     let total = entries.len();
-    let mut result = ScanResult::new(target.clone(), total);
+    let mut result = ScanResult::new(target.to_string(), total);
 
     // Track scan position atomically for rayon parallel scan
-    let counter    = Arc::new(AtomicUsize::new(0));
-    let app_clone  = app.clone();
-    let cfg_clone  = cfg.clone();
-    let cancel_ref = cancelled.clone();
+    let counter    = AtomicUsize::new(0);
     let max_bytes  = (cfg.max_file_size_mb * 1024.0 * 1024.0) as usize;
 
     // Parallel scan with rayon
-    let scan_results: Vec<(Vec<Vulnerability>, Option<String>)> = entries
+    let scan_results: Vec<(Vec<Vulnerability>, Option<String>, Option<IntelCandidate>)> = entries
         .par_iter()
         .map(|path| {
-            if cancel_ref.load(Ordering::Relaxed) {
-                return (vec![], None);
+            if cancelled.load(Ordering::Relaxed) {
+                return (vec![], None, None);
             }
 
             let cnt = counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -193,8 +233,7 @@ pub async fn run_scan(
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
 
-            // Emit progress (best-effort — ignore error if window closed)
-            let _ = app_clone.emit("scan:progress", ScanProgress {
+            progress(ScanProgress {
                 scanned:        cnt,
                 total,
                 current_file:   file_name,
@@ -204,24 +243,27 @@ pub async fn run_scan(
             // Read file
             match read_file_capped(path, max_bytes) {
                 Ok(data) => {
+                    let candidate = intel_candidate(path, &data);
                     // dispatch_timed: 10 s hard timeout per file — skips stuck parsers
-                    let vulns = dispatch_timed(path.clone(), data, cfg_clone.clone());
-                    (vulns, None)
+                    let vulns = dispatch_timed(path.clone(), data, cfg.clone());
+                    (vulns, None, candidate)
                 }
                 Err(e) => {
                     let err_msg = format!("{}: {}", path.display(), e);
                     log::warn!("Scan IO error: {err_msg}");
-                    // Log to file
-                    let _ = log_scan_error(&target, &err_msg);
-                    (vec![], Some(format!("{}|{}", path.display(), e)))
+                    if let Err(le) = log_scan_error(&err_msg) {
+                        log::warn!("Journal d'erreurs de scan inaccessible : {le}");
+                    }
+                    (vec![], Some(format!("{}|{}", path.display(), e)), None)
                 }
             }
         })
         .collect();
 
     // Aggregate results
-    for (vulns, err) in scan_results {
+    for (vulns, err, candidate) in scan_results {
         result.vulnerabilities.extend(vulns);
+        result.intel_candidates.extend(candidate);
         result.scanned_files += 1;
         if let Some(e) = err {
             let parts: Vec<&str> = e.splitn(2, '|').collect();
@@ -235,151 +277,17 @@ pub async fn run_scan(
     // Sort by severity (Critical first)
     result.vulnerabilities.sort_by(|a, b| b.severity.score().cmp(&a.severity.score()));
 
-    // Apply false-positive hints (heuristics)
-    apply_fp_hints(&mut result.vulnerabilities);
-
     result.finalize();
-
-    // Emit completion
-    let _ = app.emit("scan:complete", &result.stats);
-
-    Ok(result)
-}
-
-// ─── False-positive heuristics ───────────────────────────────────────────────
-
-fn apply_fp_hints(vulns: &mut Vec<crate::models::Vulnerability>) {
-    for v in vulns.iter_mut() {
-        v.fp_hint = detect_fp(&v.file_path, v.matched_pattern.as_deref(), &v.category);
-    }
-}
-
-fn detect_fp(
-    path:     &str,
-    matched:  Option<&str>,
-    category: &crate::models::VulnCategory,
-) -> Option<String> {
-    use crate::models::VulnCategory::*;
-
-    let path_l    = path.to_lowercase();
-    let matched_l = matched.unwrap_or("").to_lowercase();
-
-    // ── 1. Test / example / mock paths ──────────────────────────────────────
-    let path_segs: Vec<&str> = path.split(['/', '\\']).collect();
-    let test_dirs = ["test", "tests", "spec", "specs", "mock", "mocks",
-                     "fixture", "fixtures", "example", "examples",
-                     "sample", "samples", "demo", "__tests__"];
-    for seg in &path_segs {
-        let s = seg.to_lowercase();
-        if test_dirs.iter().any(|t| s == *t || s.starts_with(&format!("{}_", t)) || s.ends_with(&format!("_{}", t))) {
-            return Some(format!(
-                "Possible faux positif — fichier dans un contexte test/exemple (dossier «{}»). \
-                 Vérifier si ce code est exécuté en production.",
-                seg
-            ));
-        }
-    }
-    // file name patterns
-    if path_l.ends_with("_test.rs") || path_l.ends_with("_test.go") ||
-       path_l.ends_with(".test.js") || path_l.ends_with(".spec.ts") ||
-       path_l.ends_with(".spec.js") {
-        return Some(
-            "Possible faux positif — fichier de test (nom contient _test/.test/.spec). \
-             Vérifier si ce code est exécuté en production.".to_string()
-        );
-    }
-
-    // ── 2. Placeholder / exemple values ─────────────────────────────────────
-    let placeholders = ["placeholder", "your_api", "your-api", "your_key", "your-key",
-                        "changeme", "replace_me", "insert_key", "insert_secret",
-                        "example.com", "example_", "_example", "fake_", "dummy_",
-                        "sample_key", "demo_key", "test_key", "test_secret",
-                        "xxxx", "1234567890abcdef", "abcdefghijklmnop"];
-    for p in &placeholders {
-        if matched_l.contains(p) {
-            return Some(format!(
-                "Possible faux positif — valeur détectée ressemble à un placeholder/exemple (\"{}\"). \
-                 Peu probable que ce soit une vraie fuite.",
-                &matched_l[..matched_l.len().min(40)]
-            ));
-        }
-    }
-
-    // ── 3. WeakCrypto — checksums vs passwords ───────────────────────────────
-    if matches!(category, WeakCrypto) {
-        if matched_l.contains("md5") || matched_l.contains("sha1") || matched_l.contains("sha-1") {
-            return Some(
-                "Possible faux positif — MD5/SHA-1 fréquemment utilisés pour \
-                 checksums de fichiers ou déduplication (usage non-sécuritaire légitime). \
-                 Vérifier que ce n'est pas utilisé pour hacher des mots de passe.".to_string()
-            );
-        }
-        if matched_l.contains("random") {
-            return Some(
-                "Possible faux positif — random() peut être utilisé à des fins \
-                 non-sécuritaires (simulation, jeux, tri aléatoire). \
-                 Problème uniquement si une valeur imprévisible est requise (token, clé).".to_string()
-            );
-        }
-    }
-
-    // ── 4. CommandInjection en Rust/Go/C (outils système) ───────────────────
-    if matches!(category, CommandInjection) {
-        let ext = path_l.rsplit('.').next().unwrap_or("");
-        if matches!(ext, "rs" | "go" | "c" | "cpp" | "cs") {
-            return Some(
-                "Possible faux positif — les outils système en Rust/Go/C# utilisent \
-                 légitimement l'exécution de processus. Vérifier si les paramètres \
-                 passés à la commande peuvent être contrôlés par un attaquant.".to_string()
-            );
-        }
-    }
-
-    // ── 5. CORS wildcard sur ressources statiques ────────────────────────────
-    if matches!(category, CorsMisconfiguration) {
-        if path_l.contains("nginx") || path_l.contains("static") ||
-           path_l.contains("cdn")   || path_l.contains("assets") {
-            return Some(
-                "Possible faux positif — CORS wildcard (*) acceptable pour les ressources \
-                 statiques publiques (fonts, images, JS/CSS). \
-                 Problématique uniquement pour les endpoints API authentifiés.".to_string()
-            );
-        }
-    }
-
-    // ── 6. HighEntropyString — hashes d'assets / fingerprints de build ──────
-    if matches!(category, HighEntropyString) {
-        if path_l.ends_with(".lock") || path_l.ends_with(".sum") ||
-           path_l.contains("package-lock") || path_l.contains("yarn.lock") ||
-           path_l.contains("cargo.lock") {
-            return Some(
-                "Possible faux positif — fichier de lock contenant des hashes \
-                 d'intégrité de dépendances (non-secrets).".to_string()
-            );
-        }
-        // All-hex string of 40+ chars = SHA1 commit hash or asset fingerprint
-        let hex_only: bool = matched_l.chars().all(|c| c.is_ascii_hexdigit() || c == '"' || c == '\'');
-        if hex_only && matched_l.len() >= 40 {
-            return Some(
-                "Possible faux positif — chaîne hexadécimale longue pouvant être \
-                 un hash de commit, fingerprint d'asset ou checksum (non-secret).".to_string()
-            );
-        }
-    }
-
-    None
+    result
 }
 
 // ─── Append to log file ───────────────────────────────────────────────────────
 
-fn log_scan_error(_target: &str, error: &str) -> std::io::Result<()> {
+fn log_scan_error(error: &str) -> std::io::Result<()> {
     use std::io::Write;
-    // FIX VULN 8 — Écrire dans %APPDATA%\SecuScanAI\ au lieu du parent du target
-    // (évite d'écrire dans des dossiers système si target = C:\ ou similaire)
-    let log_dir = std::env::var("APPDATA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        .join("SecuScanAI");
+    // FIX VULN 8 — Écrire dans le dossier de configuration de l'app au lieu du
+    // parent du target (évite d'écrire dans des dossiers système si target = C:\)
+    let log_dir = crate::security::keystore::config_dir()?;
     std::fs::create_dir_all(&log_dir)?;
     let log_path = log_dir.join("scan_errors.log");
     let mut f = std::fs::OpenOptions::new()

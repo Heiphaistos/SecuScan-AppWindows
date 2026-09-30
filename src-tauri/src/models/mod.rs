@@ -15,16 +15,6 @@ pub enum Severity {
 }
 
 impl Severity {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Severity::Critical => "CRITICAL",
-            Severity::High     => "HIGH",
-            Severity::Medium   => "MEDIUM",
-            Severity::Low      => "LOW",
-            Severity::Info     => "INFO",
-        }
-    }
-
     pub fn score(&self) -> u8 {
         match self {
             Severity::Critical => 10,
@@ -119,9 +109,34 @@ pub struct Vulnerability {
     pub cwe_id:          Option<String>,
     pub ai_explanation:  Option<String>,
     pub ai_fix:          Option<String>,
-    /// Non-null = scanner thinks this may be a false positive.
-    /// Contains a short human-readable reason.
-    pub fp_hint:         Option<String>,
+    /// Probabilité (%) que le problème soit réel (vrai positif).
+    #[serde(default)]
+    pub confidence:      u8,
+    /// Probabilité (%) de faux positif (= 100 − confidence).
+    #[serde(default)]
+    pub false_positive:  u8,
+    #[serde(default)]
+    pub confidence_label: String,
+    /// Ce que fait concrètement le code / la commande détectée.
+    #[serde(default)]
+    pub what_it_does:    String,
+    /// Pourquoi c'est probablement un vrai problème.
+    #[serde(default)]
+    pub why_real:        String,
+    /// Pourquoi ça peut être un faux positif.
+    #[serde(default)]
+    pub why_false_positive: String,
+    #[serde(default)]
+    pub base_confidence: u8,
+    #[serde(default)]
+    pub confidence_factors: Vec<Factor>,
+}
+
+/// Ajustement appliqué à une probabilité, avec sa justification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Factor {
+    pub label: String,
+    pub delta: i16,
 }
 
 impl Vulnerability {
@@ -149,7 +164,14 @@ impl Vulnerability {
             cwe_id:          cwe,
             ai_explanation:  None,
             ai_fix:          None,
-            fp_hint:         None,
+            confidence:      0,
+            false_positive:  0,
+            confidence_label: String::new(),
+            what_it_does:    String::new(),
+            why_real:        String::new(),
+            why_false_positive: String::new(),
+            base_confidence: 0,
+            confidence_factors: Vec::new(),
         }
     }
 
@@ -248,6 +270,46 @@ pub struct ScanResult {
     pub vulnerabilities: Vec<Vulnerability>,
     pub errors:        Vec<ScanError>,
     pub stats:         ScanStats,
+    /// Réputation en ligne des binaires / scripts du projet.
+    #[serde(default)]
+    pub reputation:    Vec<FileReputation>,
+    #[serde(default)]
+    pub assessment:    ScanAssessment,
+    /// Fichiers exécutables / scripts à soumettre aux bases en ligne (usage interne).
+    #[serde(skip)]
+    pub intel_candidates: Vec<IntelCandidate>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IntelCandidate {
+    pub file_path: String,
+    pub sha256:    String,
+    pub md5:       String,
+    pub is_binary: bool,
+}
+
+/// Réputation d'un fichier du projet auprès des bases en ligne.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileReputation {
+    pub file_path: String,
+    pub sha256:    String,
+    pub sources:   Vec<crate::engine::intel::IntelResult>,
+    pub summary:   String,
+}
+
+/// Synthèse chiffrée du scan.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScanAssessment {
+    /// Résultats probablement réels (≥ 55 %).
+    pub likely_real:     usize,
+    /// Résultats à vérifier (30–54 %).
+    pub to_review:       usize,
+    /// Faux positifs probables (< 30 %).
+    pub likely_false_positive: usize,
+    /// Probabilité qu'un code MALVEILLANT (virus, script d'attaque) soit présent.
+    pub malware_probability: u8,
+    pub summary:         String,
+    pub method:          String,
 }
 
 impl ScanResult {
@@ -262,6 +324,9 @@ impl ScanResult {
             vulnerabilities: Vec::new(),
             errors:          Vec::new(),
             stats:           ScanStats::default(),
+            reputation:      Vec::new(),
+            assessment:      ScanAssessment::default(),
+            intel_candidates: Vec::new(),
         }
     }
 

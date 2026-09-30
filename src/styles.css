@@ -570,31 +570,55 @@ input, select, textarea { font: inherit; color: inherit; }
 ::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-/* ─── False-positive indicators ─────────────────────────────────────────────── */
-.fp-badge {
+/* ─── Probabilité réel / faux positif ───────────────────────────────────────── */
+.pct-pill {
   display: inline-block;
   font-size: 10px;
-  color: #f5c518;
-  background: rgba(245, 197, 24, 0.12);
-  border: 1px solid rgba(245, 197, 24, 0.3);
-  border-radius: 3px;
-  padding: 1px 5px;
-  margin-left: 4px;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 99px;
+  padding: 0 6px;
+  margin-left: 6px;
   cursor: help;
   vertical-align: middle;
 }
-
-.fp-hint-box {
-  margin-top: 12px;
-  padding: 10px 14px;
-  background: rgba(245, 197, 24, 0.08);
-  border-left: 3px solid #f5c518;
-  border-radius: 0 6px 6px 0;
-  font-size: 12px;
-  color: #f5c518;
-  line-height: 1.5;
+.assess {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 10px 0;
 }
-.fp-hint-box.hidden { display: none; }
+.assess-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tile { border: 1px solid var(--border); border-top: 3px solid; border-radius: 8px; padding: 6px 12px; display: flex; flex-direction: column; }
+.tile b { font-size: 20px; }
+.tile span { font-size: 11px; color: var(--text-dim); }
+.assess-sum { font-size: 12.5px; color: var(--text-dim); margin-top: 8px; }
+.fp-filter { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-dim); margin-top: 6px; cursor: pointer; }
+.method { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+.method summary { cursor: pointer; }
+.method p { margin-top: 6px; }
+.rep { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px; }
+.rep h3 { font-size: 13px; }
+.rep-note { font-size: 11.5px; color: var(--text-dim); margin: 2px 0 6px; }
+.rep-file { border-top: 1px solid var(--border); padding: 6px 0 4px; }
+.rep-path { font-size: 12px; font-family: var(--mono); word-break: break-all; }
+.rep-path span { color: var(--text-dim); }
+.rep-srcs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rep-src { border: 1px solid; border-radius: 99px; padding: 1px 9px; font-size: 10.5px; font-weight: 700; cursor: help; }
+.conf-bar { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin-top: 12px; }
+.conf-bar div { height: 100%; }
+.conf-label { font-size: 12px; font-weight: 600; margin-top: 6px; }
+.why2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.why { background: var(--surface2); border-radius: 8px; padding: 4px 12px 10px; font-size: 12.5px; line-height: 1.5; }
+.why.bad { border-left: 3px solid #ef4444; }
+.why.good { border-left: 3px solid #22c55e; }
+.calc { padding-left: 18px; color: var(--text-dim); font-size: 12.5px; }
+.calc li { margin: 3px 0; }
+.intel-note, .intel-link { font-size: 11.5px; color: var(--text-dim); margin: 4px 0 8px; line-height: 1.5; }
+.intel-name { display: block; font-size: 12px; font-weight: 600; margin-top: 6px; }
+.selectable { user-select: all; font-family: var(--mono); }
+@media (max-width: 1200px) { .why2 { grid-template-columns: 1fr; } .assess-tiles { grid-template-columns: 1fr 1fr; } }
 
 /* ─── Batch Fix Modal ────────────────────────────────────────────────────────── */
 .modal-wide { max-width: 860px; width: 90vw; }
