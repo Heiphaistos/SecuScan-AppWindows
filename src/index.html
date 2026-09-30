@@ -101,7 +101,24 @@
         <button class="btn-export" id="btnExportMd">Markdown</button>
         <button class="btn-export" id="btnExportTxt">TXT</button>
         <button class="btn-export" id="btnExportHtml">HTML</button>
+        <button class="btn-export" id="btnExportPdf">PDF</button>
       </div>
+    </div>
+  </section>
+
+  <!-- Synthèse : réel / à vérifier / faux positifs, code malveillant, réputation -->
+  <section class="assess hidden" id="assessPanel">
+    <div class="assess-tiles" id="assessTiles"></div>
+    <p class="assess-sum" id="assessSummary"></p>
+    <label class="fp-filter hidden" id="fpFilterRow"><input type="checkbox" id="hideLikelyFp" /> Masquer les faux positifs probables</label>
+    <details class="method">
+      <summary>Comment les pourcentages sont calculés</summary>
+      <p id="assessMethod"></p>
+    </details>
+    <div class="rep hidden" id="repPanel">
+      <h3 id="repTitle"></h3>
+      <p class="rep-note">Seule l'empreinte SHA-256 / MD5 est envoyée aux bases, jamais le fichier.</p>
+      <div id="repList"></div>
     </div>
   </section>
 
@@ -141,7 +158,11 @@
           <span id="detailLine"></span>
           <span id="detailCwe"></span>
         </div>
-        <p class="detail-desc" id="detailDesc"></p>
+        <div id="detailConfidence"></div>
+        <div class="detail-section">
+          <h4>Détail technique</h4>
+          <p class="detail-desc" id="detailDesc"></p>
+        </div>
         <div class="detail-section">
           <h4>Code Context</h4>
           <pre class="code-block" id="detailSnippet"></pre>
@@ -150,9 +171,6 @@
           <h4>Remediation</h4>
           <p class="detail-fix" id="detailFix"></p>
         </div>
-
-        <!-- False-positive hint -->
-        <div class="fp-hint-box hidden" id="detailFpHint"></div>
 
         <!-- AI Fix Section -->
         <div class="ai-section" id="aiSection">
@@ -189,7 +207,7 @@
       <button class="btn-icon" id="btnCloseSettings">✕</button>
     </div>
     <div class="modal-body">
-      <div class="notice">🔒 Keys are encrypted with Windows DPAPI. Never stored in plaintext.</div>
+      <div class="notice">🔒 Clés stockées localement dans votre profil : chiffrées par DPAPI sous Windows, fichier lisible par vous seul (0600) sous Linux.</div>
 
       <div class="key-group">
         <label>Anthropic (Claude)</label>
@@ -222,6 +240,64 @@
         <input type="text" class="key-input mt-4" id="endpointAntigravity"
                placeholder="https://api.antigravity.ai/v1/chat" autocomplete="off" />
         <button class="btn-save-key mt-4" id="btnSaveEndpoint">Save Endpoint</button>
+      </div>
+
+      <div class="key-group">
+        <label>Réputation en ligne (bases de menaces)</label>
+        <p class="intel-note">Clés gratuites et facultatives, saisies ici et stockées localement (jamais dans l'application).
+          Seules les empreintes SHA-256 / MD5 des exécutables et scripts sont envoyées, jamais les fichiers.
+          Clé vide = source « non configurée ».</p>
+        <span class="intel-name" title="~70 antivirus, 4 requêtes/min en gratuit">VirusTotal</span>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyVt" placeholder="Clé API VirusTotal" autocomplete="off" />
+          <button class="btn-save-key" data-provider="vt">Save</button>
+          <button class="btn-del-key" data-provider="vt">Delete</button>
+          <span class="key-status" id="statusVt"></span>
+        </div>
+        <p class="intel-link">Inscription gratuite : <span class="selectable">https://www.virustotal.com/gui/join-us</span></p>
+        <span class="intel-name" title="~20 antivirus">MetaDefender</span>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyMetadefender" placeholder="Clé API OPSWAT" autocomplete="off" />
+          <button class="btn-save-key" data-provider="metadefender">Save</button>
+          <button class="btn-del-key" data-provider="metadefender">Delete</button>
+          <span class="key-status" id="statusMetadefender"></span>
+        </div>
+        <p class="intel-link">Inscription gratuite : <span class="selectable">https://metadefender.opswat.com/</span></p>
+        <span class="intel-name" title="Sandbox CrowdStrike, compte vérifié requis">Hybrid Analysis</span>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyHybrid" placeholder="Clé API Hybrid Analysis" autocomplete="off" />
+          <button class="btn-save-key" data-provider="hybrid">Save</button>
+          <button class="btn-del-key" data-provider="hybrid">Delete</button>
+          <span class="key-status" id="statusHybrid"></span>
+        </div>
+        <p class="intel-link">Inscription gratuite : <span class="selectable">https://www.hybrid-analysis.com/signup</span></p>
+        <span class="intel-name" title="Réputation Kaspersky">Kaspersky OpenTIP</span>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyOpentip" placeholder="Clé API OpenTIP" autocomplete="off" />
+          <button class="btn-save-key" data-provider="opentip">Save</button>
+          <button class="btn-del-key" data-provider="opentip">Delete</button>
+          <span class="key-status" id="statusOpentip"></span>
+        </div>
+        <p class="intel-link">Inscription gratuite : <span class="selectable">https://opentip.kaspersky.com/</span></p>
+        <span class="intel-name" title="Rapports de menaces communautaires">AlienVault OTX</span>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyOtx" placeholder="Clé OTX" autocomplete="off" />
+          <button class="btn-save-key" data-provider="otx">Save</button>
+          <button class="btn-del-key" data-provider="otx">Delete</button>
+          <span class="key-status" id="statusOtx"></span>
+        </div>
+        <p class="intel-link">Inscription gratuite : <span class="selectable">https://otx.alienvault.com/</span></p>
+        <span class="intel-name" title="Une clé pour MalwareBazaar, ThreatFox et YARAify">abuse.ch</span>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyAbusech" placeholder="Auth-Key abuse.ch" autocomplete="off" />
+          <button class="btn-save-key" data-provider="abusech">Save</button>
+          <button class="btn-del-key" data-provider="abusech">Delete</button>
+          <span class="key-status" id="statusAbusech"></span>
+        </div>
+        <p class="intel-link">Inscription gratuite : <span class="selectable">https://auth.abuse.ch/</span></p>
+        <div class="setting-row">
+          <label><input type="checkbox" id="settingFreeLookups" checked /> Interroger les sources gratuites sans clé (Team Cymru, CIRCL)</label>
+        </div>
       </div>
 
       <div class="key-group">
@@ -306,6 +382,7 @@
 <!-- ── TOAST ─────────────────────────────────────────────────────────────────── -->
 <div class="toast hidden" id="toast"></div>
 
+<script src="insights.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

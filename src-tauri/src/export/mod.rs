@@ -1,6 +1,18 @@
-//! Report export — JSON, Markdown, CSV, TXT, HTML.
+//! Export des rapports — JSON, CSV, Markdown, texte, HTML et PDF.
+//!
+//! Markdown, texte, HTML et PDF sont rendus depuis UN même document (`report::Doc`) :
+//! ils contiennent exactement les mêmes informations — synthèse chiffrée, réputation
+//! en ligne, et pour chaque résultat sa probabilité d'être réel ou faux positif,
+//! ce que fait le code, les arguments pour et contre, le calcul et la correction.
 
-use crate::models::{ScanResult, Vulnerability};
+use crate::engine::confidence::severity_fr;
+use crate::engine::intel::IntelStatus;
+use crate::models::{ScanResult, Severity, VulnCategory, Vulnerability};
+use crate::report::{self, Badge, Block, Cell, Doc, Tone};
+
+/// Au-delà, le rapport resterait lisible mais ferait des centaines de pages.
+const MAX_CARDS: usize = 300;
+const MAX_TABLE_ROWS: usize = 1000;
 
 // ─── JSON ──────────────────────────────────────────────────────────────────────
 
@@ -12,19 +24,22 @@ pub fn to_json(result: &ScanResult) -> Result<String, String> {
 
 pub fn to_csv(result: &ScanResult) -> String {
     let mut out = String::from(
-        "ID,Severity,Category,Title,File,Line,CWE,Description,Remediation\n"
+        "ID,Severity,Category,Title,File,Line,CWE,Real %,False positive %,Verdict,Description,Remediation\n",
     );
 
     for v in &result.vulnerabilities {
         let row = format!(
-            "{},{},{:?},{},{},{},{},{},{}\n",
+            "{},{:?},{:?},{},{},{},{},{},{},{},{},{}\n",
             csv_escape(&v.id),
-            format!("{:?}", v.severity),
+            v.severity,
             v.category,
             csv_escape(&v.title),
             csv_escape(&v.file_path),
             v.line_number.map(|n| n.to_string()).unwrap_or_default(),
             csv_escape(v.cwe_id.as_deref().unwrap_or("")),
+            v.confidence,
+            v.false_positive,
+            csv_escape(&v.confidence_label),
             csv_escape(&v.description),
             csv_escape(&v.remediation),
         );
@@ -51,275 +66,338 @@ fn csv_escape(s: &str) -> String {
     }
 }
 
-// ─── Markdown ─────────────────────────────────────────────────────────────────
+// ─── Document commun ──────────────────────────────────────────────────────────
+
+fn severity_tone(s: &Severity) -> Tone {
+    match s {
+        Severity::Critical => Tone::Critical,
+        Severity::High => Tone::Danger,
+        Severity::Medium => Tone::Warn,
+        Severity::Low => Tone::Info,
+        Severity::Info => Tone::Neutral,
+    }
+}
+
+/// Tonalité d'une probabilité d'être un VRAI problème.
+fn real_tone(p: u8) -> Tone {
+    Tone::for_threat(p)
+}
+
+pub fn category_fr(c: &VulnCategory) -> &'static str {
+    use VulnCategory::*;
+    match c {
+        SqlInjection => "Injection SQL",
+        Xss => "XSS",
+        InsecureDeserialization => "Désérialisation non sûre",
+        WeakCrypto => "Cryptographie faible",
+        CorsMisconfiguration => "CORS mal configuré",
+        HardcodedSecret => "Secret en dur",
+        OpenRedirect => "Redirection ouverte",
+        PathTraversal => "Path traversal",
+        CommandInjection => "Injection de commande",
+        PrivilegeEscalation => "Élévation de privilèges",
+        ObfuscatedCommand => "Commande obfusquée",
+        AntivirusDisabled => "Antivirus désactivé",
+        PayloadDownload => "Téléchargement de charge",
+        ArbitraryCodeExecution => "Exécution de code",
+        ApiKeyLeak => "Fuite de clé API",
+        PasswordLeak => "Fuite de mot de passe",
+        JwtExposed => "JWT exposé",
+        ConnectionStringLeak => "Chaîne de connexion exposée",
+        HighEntropyString => "Chaîne à haute entropie",
+        MissingAslr => "ASLR absent",
+        MissingDep => "DEP absent",
+        InvalidSignature => "Signature invalide",
+        MalwareIndicator => "Indicateur de malware",
+        DllInjection => "Injection DLL",
+        SuspiciousPersistence => "Persistance suspecte",
+        RansomwareIndicator => "Indicateur de rançongiciel",
+        SensitiveDataExposure => "Exposition de données",
+        InsecureConfiguration => "Configuration non sûre",
+    }
+}
+
+fn intel_label(s: IntelStatus) -> (&'static str, Tone) {
+    match s {
+        IntelStatus::Malicious => ("MALVEILLANT", Tone::Critical),
+        IntelStatus::Suspicious => ("SUSPECT", Tone::Warn),
+        IntelStatus::Clean => ("RIEN TROUVÉ", Tone::Good),
+        IntelStatus::KnownGood => ("LÉGITIME CONNU", Tone::Good),
+        IntelStatus::NotFound => ("INCONNU", Tone::Neutral),
+        IntelStatus::Error => ("INDISPONIBLE", Tone::Neutral),
+        IntelStatus::NotConfigured => ("NON CONFIGURÉ", Tone::Neutral),
+    }
+}
+
+fn location(v: &Vulnerability) -> String {
+    match v.line_number {
+        Some(l) => format!("{}:{l}", v.file_path),
+        None => v.file_path.clone(),
+    }
+}
+
+fn finding_card(i: usize, v: &Vulnerability) -> Block {
+    let tone = real_tone(v.confidence);
+    let mut calc = vec![format!("Probabilité de départ pour cette règle : {} %", v.base_confidence)];
+    for f in &v.confidence_factors {
+        if f.delta == 0 {
+            calc.push(f.label.clone());
+        } else {
+            calc.push(format!("{:+} points : {}", f.delta, f.label));
+        }
+    }
+    calc.push(format!(
+        "Résultat : {} % de probabilité que ce soit un vrai problème → {} % de faux positif",
+        v.confidence, v.false_positive
+    ));
+
+    let mut kv = vec![
+        ("Conclusion".to_string(), v.confidence_label.clone()),
+        ("Emplacement".to_string(), location(v)),
+        ("Catégorie".to_string(), category_fr(&v.category).to_string()),
+        ("Gravité si réel".to_string(), severity_fr(&v.severity).to_string()),
+    ];
+    if let Some(c) = &v.cwe_id {
+        kv.push(("Référence".into(), c.clone()));
+    }
+    if let Some(m) = &v.matched_pattern {
+        if !m.is_empty() {
+            kv.push(("Élément détecté".into(), m.clone()));
+        }
+    }
+
+    let mut body = vec![
+        Block::Meter { label: "Probabilité que ce soit un vrai problème".into(), percent: v.confidence, tone },
+        Block::Meter { label: "Probabilité de faux positif".into(), percent: v.false_positive, tone: Tone::Good },
+        Block::KeyValues { items: kv, mono: false },
+        Block::Heading(2, "Ce que fait ce code".into()),
+        Block::Para(v.what_it_does.clone()),
+        Block::Heading(2, "Détail technique de la règle".into()),
+        Block::Para(v.description.clone()),
+        Block::Heading(2, "Pourquoi c'est probablement un vrai problème".into()),
+        Block::Para(v.why_real.clone()),
+        Block::Heading(2, "Pourquoi ça peut être un faux positif".into()),
+        Block::Para(v.why_false_positive.clone()),
+    ];
+    if let Some(expl) = &v.ai_explanation {
+        body.push(Block::Heading(2, "Impact en clair".into()));
+        body.push(Block::Para(expl.clone()));
+    }
+    body.push(Block::Heading(2, "Calcul du pourcentage".into()));
+    body.push(Block::Bullets(calc));
+    body.push(Block::Heading(2, "Correction recommandée".into()));
+    body.push(Block::Para(v.remediation.clone()));
+    if let Some(fix) = &v.ai_fix {
+        body.push(Block::Para(fix.clone()));
+    }
+    if let Some(snip) = &v.code_snippet {
+        body.push(Block::Heading(2, "Extrait".into()));
+        body.push(Block::Code(snip.clone()));
+    }
+
+    Block::Card {
+        tone,
+        title: format!("{}. {}", i + 1, v.title),
+        badges: vec![
+            Badge { text: severity_fr(&v.severity).to_string(), tone: severity_tone(&v.severity) },
+            Badge { text: format!("Réel {} %", v.confidence), tone },
+            Badge { text: format!("Faux positif {} %", v.false_positive), tone: Tone::Good },
+        ],
+        body,
+    }
+}
+
+pub fn build(r: &ScanResult) -> Doc {
+    let a = &r.assessment;
+    let s = &r.stats;
+    let mut b: Vec<Block> = Vec::new();
+    let total = r.vulnerabilities.len();
+
+    // ── Synthèse ──
+    let malware = a.malware_probability;
+    let (tone, title) = if malware >= 65 {
+        (Tone::Critical, "Code malveillant probable dans le projet")
+    } else if a.likely_real > 0 && (s.critical > 0 || s.high > 0) {
+        (Tone::Danger, "Problèmes de sécurité probablement réels à corriger")
+    } else if a.likely_real > 0 || a.to_review > 0 {
+        (Tone::Warn, "Quelques points à vérifier")
+    } else if total > 0 {
+        (Tone::Good, "Résultats majoritairement des faux positifs probables")
+    } else {
+        (Tone::Good, "Aucun problème détecté")
+    };
+    b.push(Block::Callout {
+        tone,
+        title: title.into(),
+        lines: vec![if a.summary.is_empty() { format!("{total} résultat(s).") } else { a.summary.clone() }],
+    });
+    b.push(Block::Stats(vec![
+        (a.likely_real.to_string(), "Probablement réels (≥ 55 %)".into(), if a.likely_real > 0 { Tone::Danger } else { Tone::Good }),
+        (a.to_review.to_string(), "À vérifier (30–54 %)".into(), Tone::Warn),
+        (a.likely_false_positive.to_string(), "Faux positifs probables (< 30 %)".into(), Tone::Good),
+        (format!("{malware} %"), "Probabilité de code malveillant".into(), Tone::for_threat(malware)),
+    ]));
+    b.push(Block::Meter {
+        label: "Probabilité qu'un code malveillant (virus, script d'attaque) soit présent".into(),
+        percent: malware,
+        tone: Tone::for_threat(malware),
+    });
+    b.push(Block::Table {
+        headers: vec!["Critique".into(), "Élevée".into(), "Moyenne".into(), "Faible".into(), "Info".into(), "Total".into()],
+        rows: vec![vec![
+            Cell::toned(s.critical.to_string(), Tone::Critical),
+            Cell::toned(s.high.to_string(), Tone::Danger),
+            Cell::toned(s.medium.to_string(), Tone::Warn),
+            Cell::new(s.low.to_string()),
+            Cell::new(s.info.to_string()),
+            Cell::new(s.total().to_string()),
+        ]],
+        widths: vec![1.0; 6],
+    });
+    b.push(Block::Note(
+        "« Gravité » = impact SI le problème est réel. « Réel % » = probabilité que ce soit un vrai problème ; \
+         « Faux positif % » = probabilité que ce soit une fausse alerte. Les deux sont indépendants : \
+         un résultat critique peut être un faux positif très probable (clé d'exemple dans un test…)."
+            .into(),
+    ));
+
+    // ── Projet ──
+    b.push(Block::Heading(1, "Projet analysé".into()));
+    let mut kv = vec![
+        ("Cible".to_string(), r.target_path.clone()),
+        ("Date".to_string(), r.started_at.format("%d/%m/%Y à %H:%M:%S UTC").to_string()),
+    ];
+    if let Some(end) = r.completed_at {
+        kv.push(("Durée".into(), format!("{} s", (end - r.started_at).num_seconds().max(0))));
+    }
+    kv.push(("Fichiers analysés".into(), format!("{} / {}", r.scanned_files, r.total_files)));
+    kv.push(("Identifiant du scan".into(), r.scan_id.clone()));
+    b.push(Block::KeyValues { items: kv, mono: false });
+
+    // ── Réputation en ligne ──
+    if !r.reputation.is_empty() {
+        b.push(Block::Heading(1, format!("Réputation en ligne ({} fichier(s) vérifié(s))", r.reputation.len())));
+        b.push(Block::Note(
+            "Exécutables et scripts du projet : seule leur empreinte SHA-256 / MD5 est envoyée aux bases \
+             (VirusTotal, MetaDefender, MalwareBazaar…), jamais le fichier."
+                .into(),
+        ));
+        for fr in &r.reputation {
+            b.push(Block::Heading(2, fr.file_path.clone()));
+            b.push(Block::Para(fr.summary.clone()));
+            if !fr.sources.is_empty() {
+                b.push(Block::Table {
+                    headers: vec!["Source".into(), "Résultat".into(), "Détails".into()],
+                    rows: fr
+                        .sources
+                        .iter()
+                        .map(|src| {
+                            let (lab, t) = intel_label(src.status);
+                            let mut det = src.summary.clone();
+                            if !src.threat_names.is_empty() {
+                                det.push_str(&format!("\nNoms : {}", src.threat_names.join(", ")));
+                            }
+                            for d in src.details.iter().take(3) {
+                                det.push('\n');
+                                det.push_str(d);
+                            }
+                            if let Some(l) = &src.link {
+                                det.push('\n');
+                                det.push_str(l);
+                            }
+                            vec![Cell::new(format!("{}\n{}", src.source, src.kind)), Cell::toned(lab, t), Cell::new(det)]
+                        })
+                        .collect(),
+                    widths: vec![2.2, 1.4, 5.4],
+                });
+            }
+            b.push(Block::KeyValues { items: vec![("SHA-256".into(), fr.sha256.clone())], mono: true });
+        }
+    }
+
+    // ── Résultats ──
+    b.push(Block::Heading(1, format!("Résultats ({total})")));
+    if total == 0 {
+        b.push(Block::Para("Aucune vulnérabilité, aucun secret et aucun comportement suspect détecté.".into()));
+    } else {
+        b.push(Block::Table {
+            headers: vec!["#".into(), "Gravité".into(), "Résultat".into(), "Emplacement".into(), "Réel".into(), "Faux positif".into()],
+            rows: r
+                .vulnerabilities
+                .iter()
+                .take(MAX_TABLE_ROWS)
+                .enumerate()
+                .map(|(i, v)| {
+                    vec![
+                        Cell::new((i + 1).to_string()),
+                        Cell::toned(severity_fr(&v.severity), severity_tone(&v.severity)),
+                        Cell::new(v.title.clone()),
+                        Cell::mono(location(v)),
+                        Cell::toned(format!("{} %", v.confidence), real_tone(v.confidence)),
+                        Cell::new(format!("{} %", v.false_positive)),
+                    ]
+                })
+                .collect(),
+            widths: vec![0.5, 1.1, 3.6, 3.0, 0.9, 1.1],
+        });
+        if total > MAX_TABLE_ROWS {
+            b.push(Block::Note(format!("{} résultat(s) supplémentaire(s) non listé(s) (export JSON/CSV pour la liste complète).", total - MAX_TABLE_ROWS)));
+        }
+        b.push(Block::Heading(1, "Détail de chaque résultat".into()));
+        for (i, v) in r.vulnerabilities.iter().take(MAX_CARDS).enumerate() {
+            b.push(finding_card(i, v));
+        }
+        if total > MAX_CARDS {
+            b.push(Block::Note(format!(
+                "Les {} résultat(s) suivants ne sont pas détaillés ici pour garder un rapport lisible : exportez en JSON ou CSV pour la liste complète.",
+                total - MAX_CARDS
+            )));
+        }
+    }
+
+    if !r.errors.is_empty() {
+        b.push(Block::Heading(1, format!("Erreurs d'analyse ({})", r.errors.len())));
+        b.push(Block::Table {
+            headers: vec!["Fichier".into(), "Erreur".into()],
+            rows: r.errors.iter().map(|e| vec![Cell::mono(e.file_path.clone()), Cell::new(e.error.clone())]).collect(),
+            widths: vec![1.0, 1.5],
+        });
+    }
+
+    b.push(Block::Heading(1, "Méthode et limites".into()));
+    if !a.method.is_empty() {
+        b.push(Block::Para(a.method.clone()));
+    }
+    b.push(Block::Note(
+        "Analyse statique : les pourcentages sont des estimations calibrées et justifiées (voir « Calcul du pourcentage »), \
+         pas une certitude. Un scan propre ne garantit pas l'absence totale de faille."
+            .into(),
+    ));
+
+    Doc {
+        app: "SecuScan".into(),
+        title: format!("Rapport de sécurité — {}", r.target_path),
+        subtitle: format!(
+            "{total} résultat(s) · {} probablement réel(s) · code malveillant {malware} %",
+            a.likely_real
+        ),
+        generated_at: chrono::Utc::now().format("%d/%m/%Y %H:%M UTC").to_string(),
+        blocks: b,
+    }
+}
 
 pub fn to_markdown(result: &ScanResult) -> String {
-    let mut md = String::new();
-
-    // Header
-    md.push_str("# SecuScan AI — Security Report\n\n");
-    md.push_str(&format!("> **Target:** `{}`\n", result.target_path));
-    md.push_str(&format!("> **Scan ID:** `{}`\n", result.scan_id));
-    md.push_str(&format!("> **Date:** {}\n", result.started_at.format("%Y-%m-%d %H:%M UTC")));
-    if let Some(end) = result.completed_at {
-        let duration = (end - result.started_at).num_seconds();
-        md.push_str(&format!("> **Duration:** {}s\n", duration));
-    }
-    md.push_str(&format!(
-        "> **Files scanned:** {} / {}\n\n",
-        result.scanned_files, result.total_files
-    ));
-
-    // Summary
-    md.push_str("## Summary\n\n");
-    md.push_str("| Severity | Count |\n|----------|-------|\n");
-    md.push_str(&format!("| 🔴 Critical | {} |\n", result.stats.critical));
-    md.push_str(&format!("| 🟠 High     | {} |\n", result.stats.high));
-    md.push_str(&format!("| 🟡 Medium   | {} |\n", result.stats.medium));
-    md.push_str(&format!("| 🟢 Low      | {} |\n", result.stats.low));
-    md.push_str(&format!("| ℹ️ Info     | {} |\n", result.stats.info));
-    md.push_str(&format!("| **Total**   | **{}** |\n\n", result.stats.total()));
-
-    // Findings grouped by severity
-    for severity_label in &["Critical", "High", "Medium", "Low", "Info"] {
-        let group: Vec<&Vulnerability> = result.vulnerabilities.iter()
-            .filter(|v| format!("{:?}", v.severity).to_lowercase() == severity_label.to_lowercase())
-            .collect();
-
-        if group.is_empty() { continue; }
-
-        let emoji = match *severity_label {
-            "Critical" => "🔴",
-            "High"     => "🟠",
-            "Medium"   => "🟡",
-            "Low"      => "🟢",
-            _          => "ℹ️",
-        };
-
-        md.push_str(&format!("## {} {} Findings\n\n", emoji, severity_label));
-
-        for (i, v) in group.iter().enumerate() {
-            md.push_str(&format!("### {}.{} {}\n\n", severity_label, i + 1, v.title));
-            md.push_str(&format!("- **File:** `{}`\n", v.file_path));
-            if let Some(line) = v.line_number {
-                md.push_str(&format!("- **Line:** {}\n", line));
-            }
-            if let Some(cwe) = &v.cwe_id {
-                md.push_str(&format!("- **CWE:** {}\n", cwe));
-            }
-            md.push_str(&format!("\n**Description:**\n{}\n\n", v.description));
-            md.push_str(&format!("**Remediation:**\n{}\n\n", v.remediation));
-            if let Some(snippet) = &v.code_snippet {
-                md.push_str("**Code context:**\n```\n");
-                md.push_str(snippet);
-                md.push_str("\n```\n\n");
-            }
-            if let Some(fix) = &v.ai_fix {
-                md.push_str("**AI-suggested fix:**\n```\n");
-                md.push_str(fix);
-                md.push_str("\n```\n\n");
-            }
-            md.push_str("---\n\n");
-        }
-    }
-
-    // Scan errors
-    if !result.errors.is_empty() {
-        md.push_str("## ⚠️ Scan Errors\n\n");
-        for e in &result.errors {
-            md.push_str(&format!("- `{}`: {}\n", e.file_path, e.error));
-        }
-        md.push('\n');
-    }
-
-    md.push_str(&format!("---\n*Generated by SecuScan AI v{}*\n", env!("CARGO_PKG_VERSION")));
-    md
+    report::markdown::render(&build(result))
 }
-
-// ─── Plain Text ───────────────────────────────────────────────────────────────
 
 pub fn to_txt(result: &ScanResult) -> String {
-    let mut out = String::new();
-    let sep  = "=".repeat(72);
-    let sep2 = "-".repeat(72);
-
-    out.push_str("SECUSCAN AI — SECURITY REPORT\n");
-    out.push_str(&sep); out.push('\n');
-    out.push_str(&format!("Target  : {}\n", result.target_path));
-    out.push_str(&format!("Scan ID : {}\n", result.scan_id));
-    out.push_str(&format!("Date    : {}\n", result.started_at.format("%Y-%m-%d %H:%M UTC")));
-    out.push_str(&format!("Files   : {} / {}\n\n", result.scanned_files, result.total_files));
-
-    out.push_str("SUMMARY\n");
-    out.push_str(&sep2); out.push('\n');
-    out.push_str(&format!("  Critical : {}\n", result.stats.critical));
-    out.push_str(&format!("  High     : {}\n", result.stats.high));
-    out.push_str(&format!("  Medium   : {}\n", result.stats.medium));
-    out.push_str(&format!("  Low      : {}\n", result.stats.low));
-    out.push_str(&format!("  Info     : {}\n", result.stats.info));
-    out.push_str(&format!("  TOTAL    : {}\n\n", result.stats.total()));
-
-    out.push_str("FINDINGS\n");
-    out.push_str(&sep); out.push('\n');
-
-    for (i, v) in result.vulnerabilities.iter().enumerate() {
-        out.push_str(&format!("\n[{:>3}] [{:?}] {}\n", i + 1, v.severity, v.title.to_uppercase()));
-        out.push_str(&format!("      File       : {}\n", v.file_path));
-        if let Some(l) = v.line_number {
-            out.push_str(&format!("      Line       : {}\n", l));
-        }
-        if let Some(c) = &v.cwe_id {
-            out.push_str(&format!("      CWE        : {}\n", c));
-        }
-        out.push_str(&format!("      Description: {}\n", v.description));
-        out.push_str(&format!("      Remediation: {}\n", v.remediation));
-        if let Some(fp) = &v.fp_hint {
-            out.push_str(&format!("      [FP?]      : {}\n", fp));
-        }
-        if let Some(snippet) = &v.code_snippet {
-            out.push_str("      Code:\n");
-            for line in snippet.lines() {
-                out.push_str(&format!("        {}\n", line));
-            }
-        }
-        out.push_str(&format!("      {}\n", sep2));
-    }
-
-    if !result.errors.is_empty() {
-        out.push_str("\nSCAN ERRORS\n");
-        out.push_str(&sep2); out.push('\n');
-        for e in &result.errors {
-            out.push_str(&format!("  {} : {}\n", e.file_path, e.error));
-        }
-    }
-
-    out.push_str(&format!("\nGenerated by SecuScan AI v{}\n", env!("CARGO_PKG_VERSION")));
-    out
+    report::text::render(&build(result))
 }
-
-// ─── HTML ─────────────────────────────────────────────────────────────────────
-
-const HTML_CSS: &str = r#"<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;font-size:14px}
-header{background:#0a0d14;color:#fff;padding:20px 32px;display:flex;align-items:center;gap:12px}
-header h1{font-size:20px;font-weight:700}header span{color:#00d4ff;font-size:13px}
-.meta{background:#fff;border-bottom:1px solid #e0e0e0;padding:12px 32px;font-size:13px;color:#555}
-.summary{display:flex;gap:12px;padding:20px 32px;flex-wrap:wrap}
-.stat{background:#fff;border-radius:8px;padding:12px 20px;text-align:center;min-width:90px;border:1px solid #e0e0e0}
-.stat .n{font-size:28px;font-weight:700}.stat .l{font-size:12px;color:#888;margin-top:2px}
-.stat.critical .n{color:#e53935}.stat.high .n{color:#f57c00}
-.stat.medium .n{color:#f9a825}.stat.low .n{color:#43a047}.stat.info .n{color:#1e88e5}
-table{width:calc(100% - 64px);margin:0 32px 32px;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0}
-th{background:#f0f0f0;padding:10px 14px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-tr.finding{cursor:pointer}tr.finding:hover{background:#fafafa}
-td{padding:10px 14px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
-.num{color:#aaa;width:40px;text-align:center}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;color:#fff}
-.badge.critical{background:#e53935}.badge.high{background:#f57c00}
-.badge.medium{background:#f9a825;color:#222}.badge.low{background:#43a047}.badge.info{background:#1e88e5}
-.cwe{font-size:11px;color:#888;margin-left:6px}
-.filepath{font-family:monospace;font-size:12px;color:#555}
-tr.detail{background:#fafff0}tr.detail.hidden{display:none}
-tr.detail td{padding:14px 14px 14px 68px;border-bottom:2px solid #e8e8e8}
-tr.detail p{margin-bottom:8px;line-height:1.5}
-.snippet{background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;margin-top:8px;white-space:pre}
-.fp-hint{background:#fff8e1;border-left:3px solid #f9a825;padding:8px 12px;margin:8px 0;font-size:12px;border-radius:0 4px 4px 0}
-footer{text-align:center;color:#aaa;font-size:12px;padding:20px;margin-top:20px}
-</style>"#;
 
 pub fn to_html(result: &ScanResult) -> String {
-    let date    = result.started_at.format("%Y-%m-%d %H:%M UTC").to_string();
-    let stats   = &result.stats;
-    let ver     = env!("CARGO_PKG_VERSION");
-
-    // Build rows
-    let mut rows = String::new();
-    for (i, v) in result.vulnerabilities.iter().enumerate() {
-        let sev_class = format!("{:?}", v.severity).to_lowercase();
-        let sev_label = format!("{:?}", v.severity).to_uppercase();
-        let snippet_html = v.code_snippet.as_deref()
-            .map(|s| format!("<pre class=\"snippet\">{}</pre>", html_escape(s)))
-            .unwrap_or_default();
-        let fp_html = v.fp_hint.as_deref()
-            .map(|h| format!(
-                "<div class=\"fp-hint\">\u{26a0}\u{fe0f} Possible faux positif \u{2014} {}</div>",
-                html_escape(h)
-            ))
-            .unwrap_or_default();
-        let line_str = v.line_number.map(|l| format!(":{l}")).unwrap_or_default();
-        let cwe_str  = v.cwe_id.as_deref()
-            .map(|c| format!(" <span class=\"cwe\">{}</span>", html_escape(c)))
-            .unwrap_or_default();
-
-        rows.push_str("<tr class=\"finding ");
-        rows.push_str(&sev_class);
-        rows.push_str("\" onclick=\"this.nextElementSibling.classList.toggle('hidden')\">");
-        rows.push_str(&format!("<td class=\"num\">{}</td>", i + 1));
-        rows.push_str(&format!("<td><span class=\"badge {}\">{}</span></td>", sev_class, sev_label));
-        rows.push_str(&format!("<td>{}{}</td>", html_escape(&v.title), cwe_str));
-        rows.push_str(&format!("<td class=\"filepath\">{}{}</td>", html_escape(&v.file_path), line_str));
-        rows.push_str("</tr>\n");
-        rows.push_str("<tr class=\"detail hidden\"><td colspan=\"4\">");
-        rows.push_str(&format!("<p>{}</p>", html_escape(&v.description)));
-        rows.push_str(&format!("<p><strong>Remediation:</strong> {}</p>", html_escape(&v.remediation)));
-        rows.push_str(&fp_html);
-        rows.push_str(&snippet_html);
-        rows.push_str("</td></tr>\n");
-    }
-
-    // Assemble full document (no CSS inside format! — avoids brace escaping hell)
-    let mut html = String::with_capacity(rows.len() + 8192);
-    html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
-    html.push_str("<meta charset=\"UTF-8\"/>\n");
-    html.push_str("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>\n");
-    html.push_str(&format!("<title>SecuScan AI Report \u{2014} {date}</title>\n"));
-    html.push_str(HTML_CSS);
-    html.push_str("\n</head>\n<body>\n");
-    // Header
-    html.push_str("<header>\n");
-    html.push_str("  <svg width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#00d4ff\" stroke-width=\"2\">\n");
-    html.push_str("    <path d=\"M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z\"/>\n");
-    html.push_str("    <path d=\"M9 12l2 2 4-4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n");
-    html.push_str("  </svg>\n");
-    html.push_str("  <h1>SecuScan AI <span>Security Report</span></h1>\n</header>\n");
-    // Meta bar
-    html.push_str(&format!(
-        "<div class=\"meta\">Target: <strong>{}</strong> &nbsp;|&nbsp; Date: <strong>{date}</strong> &nbsp;|&nbsp; Files: <strong>{}/{}</strong> &nbsp;|&nbsp; Scan ID: <code>{}</code></div>\n",
-        html_escape(&result.target_path), result.scanned_files, result.total_files, html_escape(&result.scan_id)
-    ));
-    // Stats
-    html.push_str("<div class=\"summary\">\n");
-    for (cls, label, n) in [
-        ("critical", "Critical", stats.critical),
-        ("high",     "High",     stats.high),
-        ("medium",   "Medium",   stats.medium),
-        ("low",      "Low",      stats.low),
-        ("info",     "Info",     stats.info),
-    ] {
-        html.push_str(&format!(
-            "  <div class=\"stat {cls}\"><div class=\"n\">{n}</div><div class=\"l\">{label}</div></div>\n"
-        ));
-    }
-    html.push_str(&format!(
-        "  <div class=\"stat\"><div class=\"n\">{}</div><div class=\"l\">Total</div></div>\n",
-        stats.total()
-    ));
-    html.push_str("</div>\n");
-    // Table
-    html.push_str("<table>\n<thead><tr><th>#</th><th>Severity</th><th>Finding</th><th>File</th></tr></thead>\n<tbody>\n");
-    html.push_str(&rows);
-    html.push_str("</tbody>\n</table>\n");
-    html.push_str(&format!(
-        "<footer>Generated by SecuScan AI v{ver} \u{2014} Click a row to expand details</footer>\n"
-    ));
-    html.push_str("</body>\n</html>");
-    html
+    report::html::render(&build(result))
 }
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
+pub fn to_pdf(result: &ScanResult) -> Vec<u8> {
+    report::pdf::render(&build(result))
 }

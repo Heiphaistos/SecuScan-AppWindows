@@ -200,7 +200,7 @@ fn get_rules() -> &'static Vec<Rule> {
             ),
             // ── XXE ───────────────────────────────────────────────────────
             r!(
-                r#"(?i)(libxml_disable_entity_loader\s*\(\s*false|resolve_entities\s*=\s*True|noent\s*=\s*True|XMLParser\([^)]*resolve_entities|DocumentBuilderFactory)"#,
+                r#"(?i)(libxml_disable_entity_loader\s*\(\s*false|resolve_entities\s*=\s*True|noent\s*=\s*True|XMLParser\([^)]*resolve_entities|DocumentBuilderFactory\.newInstance\s*\()"#,
                 Severity::High, VulnCategory::InsecureDeserialization,
                 "XXE — XML External Entity processing enabled",
                 "XML parser resolves external entities, enabling local file disclosure and SSRF via crafted DTD.",

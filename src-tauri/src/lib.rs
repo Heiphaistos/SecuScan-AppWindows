@@ -5,6 +5,7 @@ mod error;
 mod export;
 mod models;
 mod parsers;
+mod report;
 mod security;
 
 use commands::AppState;
@@ -40,6 +41,7 @@ pub fn run() {
             commands::delete_api_key,
             commands::get_key_status,
             commands::save_antigravity_endpoint,
+            commands::set_intel_free_lookups,
             // Info
             commands::get_version,
         ])
