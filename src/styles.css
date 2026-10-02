@@ -224,6 +224,7 @@ input, select, textarea { font: inherit; color: inherit; }
 /* ─── Stats ────────────────────────────────────────────────────────────────── */
 .stats-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
@@ -247,8 +248,8 @@ input, select, textarea { font: inherit; color: inherit; }
 .stat-card.low      .stat-num { color: var(--low); }
 .stat-card.info     .stat-num { color: var(--info); }
 .stat-card.files    .stat-num { color: var(--accent); }
-.scan-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-.export-group { display: flex; gap: 4px; }
+.scan-actions { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; }
+.export-group { display: flex; flex-wrap: wrap; gap: 4px; }
 
 /* ─── Filter bar ───────────────────────────────────────────────────────────── */
 .filter-bar {
@@ -294,6 +295,7 @@ input, select, textarea { font: inherit; color: inherit; }
 /* ─── Vuln list ─────────────────────────────────────────────────────────────── */
 .vuln-list {
   width: 380px;
+  overflow-x: hidden;
   flex-shrink: 0;
   overflow-y: auto;
   display: flex;
@@ -315,6 +317,8 @@ input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 3px;
 }
 .vuln-item:hover  { background: var(--surface2); border-color: var(--border-glow); }
@@ -325,8 +329,12 @@ input, select, textarea { font: inherit; color: inherit; }
 .vuln-item[data-sev="low"]      { border-left-color: var(--low); }
 .vuln-item[data-sev="info"]     { border-left-color: var(--info); }
 
-.vuln-item-header { display: flex; justify-content: space-between; gap: 8px; }
-.vuln-item-title  { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vuln-item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-width: 0; }
+.vuln-item-title  {
+  font-size: 13px; font-weight: 500; min-width: 0; overflow-wrap: anywhere;
+  /* Titres français plus longs : 2 lignes max, le titre complet est dans l'infobulle */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 .sev-badge {
   font-size: 9px;
   font-weight: 700;
