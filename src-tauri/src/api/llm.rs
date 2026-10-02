@@ -34,6 +34,7 @@ fn build_prompt(vuln: &Vulnerability) -> String {
 1. Explain in 2-3 sentences what the vulnerability is and how an attacker could exploit it.
 2. Provide the corrected, secure version of the code with inline comments explaining each fix.
 3. Keep the fix minimal — do not refactor unrelated code.
+4. Write the explanation and the code comments in French.
 
 ## Response format (JSON only):
 ```json
@@ -102,7 +103,7 @@ async fn call_claude(
     if !resp.status().is_success() {
         let status = resp.status();
         let body   = resp.text().await.unwrap_or_default();
-        return Err(format!("Claude API {status}: {body}"));
+        return Err(format!("API Claude {status} : {body}"));
     }
 
     let parsed: AnthropicResponse = resp.json().await.map_err(|e| e.to_string())?;
@@ -110,7 +111,7 @@ async fn call_claude(
         .content
         .into_iter()
         .find_map(|c| c.text)
-        .ok_or_else(|| "Empty Claude response".to_string())
+        .ok_or_else(|| "Réponse vide de Claude".to_string())
 }
 
 // ─── Gemini (Google) ──────────────────────────────────────────────────────────
@@ -190,7 +191,7 @@ async fn call_gemini(
     if !resp.status().is_success() {
         let status = resp.status();
         let body   = resp.text().await.unwrap_or_default();
-        return Err(format!("Gemini API {status}: {body}"));
+        return Err(format!("API Gemini {status} : {body}"));
     }
 
     let parsed: GeminiResponse = resp.json().await.map_err(|e| e.to_string())?;
@@ -198,7 +199,7 @@ async fn call_gemini(
         .candidates
         .into_iter()
         .find_map(|c| c.content.parts.into_iter().find_map(|p| p.text))
-        .ok_or_else(|| "Empty Gemini response".to_string())
+        .ok_or_else(|| "Réponse vide de Gemini".to_string())
 }
 
 // ─── Antigravity ─────────────────────────────────────────────────────────────
@@ -227,12 +228,12 @@ async fn call_antigravity(
     if !resp.status().is_success() {
         let status = resp.status();
         let body   = resp.text().await.unwrap_or_default();
-        return Err(format!("Antigravity API {status}: {body}"));
+        return Err(format!("API Antigravity {status} : {body}"));
     }
 
     let parsed: AgResponse = resp.json().await.map_err(|e| e.to_string())?;
     parsed.result.or(parsed.text)
-        .ok_or_else(|| "Empty Antigravity response".to_string())
+        .ok_or_else(|| "Réponse vide d'Antigravity".to_string())
 }
 
 // ─── JSON extraction from LLM response ───────────────────────────────────────
@@ -337,7 +338,7 @@ Current file content:
 ```
 
 Return exactly this JSON structure:
-{{"fixed_code": "<complete corrected file content>", "summary": "<one sentence describing what was fixed>"}}"#
+{{"fixed_code": "<complete corrected file content>", "summary": "<one sentence, in French, describing what was fixed>"}}"#
     )
 }
 
@@ -369,7 +370,7 @@ pub async fn batch_fix_file(
 
     let (summary, fixed_code) = extract_json_batch(&raw);
     if fixed_code.is_empty() {
-        return Err(format!("LLM returned no fixed_code for {file_path}"));
+        return Err(format!("L'IA n'a renvoyé aucun code corrigé pour {file_path}"));
     }
     Ok((fixed_code, summary))
 }
@@ -381,7 +382,7 @@ fn extract_json_batch(raw: &str) -> (String, String) {
     let end   = raw.rfind('}').map(|i| i + 1).unwrap_or(raw.len());
     if start < end {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw[start..end]) {
-            let summary    = v["summary"].as_str().unwrap_or("Fixes applied.").to_string();
+            let summary    = v["summary"].as_str().unwrap_or("Corrections appliquées.").to_string();
             let fixed_code = v["fixed_code"].as_str().unwrap_or("").to_string();
             if !fixed_code.is_empty() {
                 return (summary, fixed_code);

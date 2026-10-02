@@ -24,7 +24,7 @@ pub fn to_json(result: &ScanResult) -> Result<String, String> {
 
 pub fn to_csv(result: &ScanResult) -> String {
     let mut out = String::from(
-        "ID,Severity,Category,Title,File,Line,CWE,Real %,False positive %,Verdict,Description,Remediation\n",
+        "ID,Gravité,Catégorie,Titre,Fichier,Ligne,CWE,% réel,% faux positif,Verdict,Description,Correction\n",
     );
 
     for v in &result.vulnerabilities {
@@ -93,7 +93,7 @@ pub fn category_fr(c: &VulnCategory) -> &'static str {
         CorsMisconfiguration => "CORS mal configuré",
         HardcodedSecret => "Secret en dur",
         OpenRedirect => "Redirection ouverte",
-        PathTraversal => "Path traversal",
+        PathTraversal => "Traversée de répertoire",
         CommandInjection => "Injection de commande",
         PrivilegeEscalation => "Élévation de privilèges",
         ObfuscatedCommand => "Commande obfusquée",

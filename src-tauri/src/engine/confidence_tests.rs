@@ -74,7 +74,7 @@ fn injection_sql_cle_de_test_et_valeur_factice() {
         println!("{:>3} % réel | {:<55} | {} | {:?}", v.confidence, v.title, v.file_path, v.confidence_factors);
     }
 
-    let sqli = find(&r, "app/views.py", "SQL Injection");
+    let sqli = find(&r, "app/views.py", "Injection SQL");
     assert!(sqli.confidence >= 55, "SQLi sur entrée utilisateur : {} {:?}", sqli.confidence, sqli.confidence_factors);
     assert!(sqli.confidence_factors.iter().any(|f| f.delta > 0), "facteur « entrée utilisateur » attendu");
 
@@ -84,7 +84,7 @@ fn injection_sql_cle_de_test_et_valeur_factice() {
     assert_eq!(prod.confidence as i16 - test.confidence as i16, 35, "même clé, -35 points en dossier de test");
     assert!(test.confidence < 55, "clé dans tests/ ne doit pas être « réelle » : {}", test.confidence);
 
-    let fake = find(&r, "config/app.env", "Password");
+    let fake = find(&r, "config/app.env", "Mot de passe");
     assert!(fake.confidence < 12, "valeur factice : {} {:?}", fake.confidence, fake.confidence_factors);
     assert_eq!(fake.confidence_label, "Faux positif très probable");
 
@@ -144,7 +144,7 @@ fn tous_les_exports() {
     let pdf = crate::export::to_pdf(&r);
     assert!(pdf.starts_with(b"%PDF") && pdf.ends_with(b"%%EOF\n"));
     let csv = crate::export::to_csv(&r);
-    assert!(csv.lines().next().unwrap().contains("Real %"));
+    assert!(csv.lines().next().unwrap().contains("% réel"));
     let back: ScanResult = serde_json::from_str(&crate::export::to_json(&r).unwrap()).unwrap();
     assert_eq!(back.vulnerabilities[0].confidence, r.vulnerabilities[0].confidence);
 }

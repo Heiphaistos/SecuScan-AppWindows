@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -23,7 +23,7 @@
     </div>
   </div>
   <div class="header-right">
-    <button class="btn-icon" id="btnSettings" title="API Keys & Settings">
+    <button class="btn-icon" id="btnSettings" title="Clés API et réglages">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
@@ -41,15 +41,15 @@
         <path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
         <path d="M12 11v5M9.5 13.5l2.5-2.5 2.5 2.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <p class="drop-title">Drop a folder to scan</p>
-      <p class="drop-sub">or</p>
-      <button class="btn-primary" id="btnPickFolder">Browse folder</button>
+      <p class="drop-title">Déposez un dossier à analyser</p>
+      <p class="drop-sub">ou</p>
+      <button class="btn-primary" id="btnPickFolder">Choisir un dossier</button>
     </div>
 
     <!-- Progress (hidden initially) -->
     <div class="scan-progress hidden" id="scanProgress">
       <div class="progress-header">
-        <span class="progress-label">Scanning…</span>
+        <span class="progress-label">Analyse en cours…</span>
         <div class="progress-meta">
           <span class="progress-pct" id="progressPct">0%</span>
           <span class="progress-sep">·</span>
@@ -61,8 +61,8 @@
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
       </div>
-      <p class="progress-file" id="progressFile">Initializing…</p>
-      <button class="btn-danger-sm" id="btnCancel">Cancel</button>
+      <p class="progress-file" id="progressFile">Initialisation…</p>
+      <button class="btn-danger-sm" id="btnCancel">Annuler</button>
     </div>
   </section>
 
@@ -70,19 +70,19 @@
   <section class="stats-row hidden" id="statsRow">
     <div class="stat-card critical" id="statCritical">
       <span class="stat-num" id="numCritical">0</span>
-      <span class="stat-label">Critical</span>
+      <span class="stat-label">Critique</span>
     </div>
     <div class="stat-card high" id="statHigh">
       <span class="stat-num" id="numHigh">0</span>
-      <span class="stat-label">High</span>
+      <span class="stat-label">Élevée</span>
     </div>
     <div class="stat-card medium" id="statMedium">
       <span class="stat-num" id="numMedium">0</span>
-      <span class="stat-label">Medium</span>
+      <span class="stat-label">Moyenne</span>
     </div>
     <div class="stat-card low" id="statLow">
       <span class="stat-num" id="numLow">0</span>
-      <span class="stat-label">Low</span>
+      <span class="stat-label">Faible</span>
     </div>
     <div class="stat-card info" id="statInfo">
       <span class="stat-num" id="numInfo">0</span>
@@ -90,11 +90,11 @@
     </div>
     <div class="stat-card files">
       <span class="stat-num" id="numFiles">0</span>
-      <span class="stat-label">Files</span>
+      <span class="stat-label">Fichiers</span>
     </div>
     <div class="scan-actions">
-      <button class="btn-secondary" id="btnNewScan">New Scan</button>
-      <button class="btn-ai" id="btnBatchFix" title="Fix all vulnerabilities with AI">🤖 Batch Fix</button>
+      <button class="btn-secondary" id="btnNewScan">Nouvelle analyse</button>
+      <button class="btn-ai" id="btnBatchFix" title="Corriger toutes les vulnérabilités avec l'IA">🤖 Correction groupée</button>
       <div class="export-group">
         <button class="btn-export" id="btnExportJson">JSON</button>
         <button class="btn-export" id="btnExportCsv">CSV</button>
@@ -125,13 +125,13 @@
   <!-- Filter bar -->
   <section class="filter-bar hidden" id="filterBar">
     <div class="filter-pills">
-      <button class="pill active" data-filter="all">All</button>
-      <button class="pill" data-filter="critical">🔴 Critical</button>
-      <button class="pill" data-filter="high">🟠 High</button>
-      <button class="pill" data-filter="medium">🟡 Medium</button>
-      <button class="pill" data-filter="low">🟢 Low</button>
+      <button class="pill active" data-filter="all">Toutes</button>
+      <button class="pill" data-filter="critical">🔴 Critique</button>
+      <button class="pill" data-filter="high">🟠 Élevée</button>
+      <button class="pill" data-filter="medium">🟡 Moyenne</button>
+      <button class="pill" data-filter="low">🟢 Faible</button>
     </div>
-    <input type="text" class="search-input" id="searchInput" placeholder="Search file, title, CWE…" />
+    <input type="text" class="search-input" id="searchInput" placeholder="Rechercher un fichier, un titre, un CWE…" />
   </section>
 
   <!-- Results panel -->
@@ -146,7 +146,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
           <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
         </svg>
-        <p>Select a vulnerability<br/>to view details</p>
+        <p>Sélectionnez une vulnérabilité<br/>pour afficher le détail</p>
       </div>
       <div class="detail-content hidden" id="detailContent">
         <div class="detail-header">
@@ -164,25 +164,25 @@
           <p class="detail-desc" id="detailDesc"></p>
         </div>
         <div class="detail-section">
-          <h4>Code Context</h4>
+          <h4>Code concerné</h4>
           <pre class="code-block" id="detailSnippet"></pre>
         </div>
         <div class="detail-section">
-          <h4>Remediation</h4>
+          <h4>Correction</h4>
           <p class="detail-fix" id="detailFix"></p>
         </div>
 
         <!-- AI Fix Section -->
         <div class="ai-section" id="aiSection">
-          <h4>🤖 AI-Assisted Fix</h4>
+          <h4>🤖 Correction assistée par IA</h4>
           <div class="ai-controls">
             <select class="ai-provider-select" id="aiProvider">
               <option value="claude">Claude (Anthropic)</option>
               <option value="gemini">Gemini (Google)</option>
               <option value="antigravity">Antigravity</option>
             </select>
-            <button class="btn-ai" id="btnGetFix">Get AI Fix</button>
-            <button class="btn-clipboard" id="btnCopyPrompt" title="Copy optimized prompt to clipboard">📋 Copy Prompt</button>
+            <button class="btn-ai" id="btnGetFix">Obtenir une correction IA</button>
+            <button class="btn-clipboard" id="btnCopyPrompt" title="Copier le prompt optimisé dans le presse-papiers">📋 Copier le prompt</button>
           </div>
           <div class="ai-result hidden" id="aiResult">
             <div class="ai-explanation" id="aiExplanation"></div>
@@ -190,7 +190,7 @@
           </div>
           <div class="ai-loading hidden" id="aiLoading">
             <div class="spinner"></div>
-            <span>Requesting AI analysis…</span>
+            <span>Analyse IA en cours…</span>
           </div>
         </div>
       </div>
@@ -203,7 +203,7 @@
 <div class="modal-overlay hidden" id="settingsModal">
   <div class="modal">
     <div class="modal-header">
-      <h2>API Keys & Settings</h2>
+      <h2>Clés API et réglages</h2>
       <button class="btn-icon" id="btnCloseSettings">✕</button>
     </div>
     <div class="modal-body">
@@ -213,8 +213,8 @@
         <label>Anthropic (Claude)</label>
         <div class="key-row">
           <input type="password" class="key-input" id="keyClaude" placeholder="sk-ant-api…" autocomplete="off" />
-          <button class="btn-save-key" data-provider="claude">Save</button>
-          <button class="btn-del-key" data-provider="claude">Delete</button>
+          <button class="btn-save-key" data-provider="claude">Enregistrer</button>
+          <button class="btn-del-key" data-provider="claude">Supprimer</button>
           <span class="key-status" id="statusClaude"></span>
         </div>
       </div>
@@ -223,8 +223,8 @@
         <label>Google (Gemini)</label>
         <div class="key-row">
           <input type="password" class="key-input" id="keyGemini" placeholder="AIza…" autocomplete="off" />
-          <button class="btn-save-key" data-provider="gemini">Save</button>
-          <button class="btn-del-key" data-provider="gemini">Delete</button>
+          <button class="btn-save-key" data-provider="gemini">Enregistrer</button>
+          <button class="btn-del-key" data-provider="gemini">Supprimer</button>
           <span class="key-status" id="statusGemini"></span>
         </div>
       </div>
@@ -232,14 +232,14 @@
       <div class="key-group">
         <label>Antigravity</label>
         <div class="key-row">
-          <input type="password" class="key-input" id="keyAntigravity" placeholder="API key…" autocomplete="off" />
-          <button class="btn-save-key" data-provider="antigravity">Save</button>
-          <button class="btn-del-key" data-provider="antigravity">Delete</button>
+          <input type="password" class="key-input" id="keyAntigravity" placeholder="Clé API…" autocomplete="off" />
+          <button class="btn-save-key" data-provider="antigravity">Enregistrer</button>
+          <button class="btn-del-key" data-provider="antigravity">Supprimer</button>
           <span class="key-status" id="statusAntigravity"></span>
         </div>
         <input type="text" class="key-input mt-4" id="endpointAntigravity"
                placeholder="https://api.antigravity.ai/v1/chat" autocomplete="off" />
-        <button class="btn-save-key mt-4" id="btnSaveEndpoint">Save Endpoint</button>
+        <button class="btn-save-key mt-4" id="btnSaveEndpoint">Enregistrer l'adresse</button>
       </div>
 
       <div class="key-group">
@@ -250,48 +250,48 @@
         <span class="intel-name" title="~70 antivirus, 4 requêtes/min en gratuit">VirusTotal</span>
         <div class="key-row">
           <input type="password" class="key-input" id="keyVt" placeholder="Clé API VirusTotal" autocomplete="off" />
-          <button class="btn-save-key" data-provider="vt">Save</button>
-          <button class="btn-del-key" data-provider="vt">Delete</button>
+          <button class="btn-save-key" data-provider="vt">Enregistrer</button>
+          <button class="btn-del-key" data-provider="vt">Supprimer</button>
           <span class="key-status" id="statusVt"></span>
         </div>
         <p class="intel-link">Inscription gratuite : <span class="selectable">https://www.virustotal.com/gui/join-us</span></p>
         <span class="intel-name" title="~20 antivirus">MetaDefender</span>
         <div class="key-row">
           <input type="password" class="key-input" id="keyMetadefender" placeholder="Clé API OPSWAT" autocomplete="off" />
-          <button class="btn-save-key" data-provider="metadefender">Save</button>
-          <button class="btn-del-key" data-provider="metadefender">Delete</button>
+          <button class="btn-save-key" data-provider="metadefender">Enregistrer</button>
+          <button class="btn-del-key" data-provider="metadefender">Supprimer</button>
           <span class="key-status" id="statusMetadefender"></span>
         </div>
         <p class="intel-link">Inscription gratuite : <span class="selectable">https://metadefender.opswat.com/</span></p>
         <span class="intel-name" title="Sandbox CrowdStrike, compte vérifié requis">Hybrid Analysis</span>
         <div class="key-row">
           <input type="password" class="key-input" id="keyHybrid" placeholder="Clé API Hybrid Analysis" autocomplete="off" />
-          <button class="btn-save-key" data-provider="hybrid">Save</button>
-          <button class="btn-del-key" data-provider="hybrid">Delete</button>
+          <button class="btn-save-key" data-provider="hybrid">Enregistrer</button>
+          <button class="btn-del-key" data-provider="hybrid">Supprimer</button>
           <span class="key-status" id="statusHybrid"></span>
         </div>
         <p class="intel-link">Inscription gratuite : <span class="selectable">https://www.hybrid-analysis.com/signup</span></p>
         <span class="intel-name" title="Réputation Kaspersky">Kaspersky OpenTIP</span>
         <div class="key-row">
           <input type="password" class="key-input" id="keyOpentip" placeholder="Clé API OpenTIP" autocomplete="off" />
-          <button class="btn-save-key" data-provider="opentip">Save</button>
-          <button class="btn-del-key" data-provider="opentip">Delete</button>
+          <button class="btn-save-key" data-provider="opentip">Enregistrer</button>
+          <button class="btn-del-key" data-provider="opentip">Supprimer</button>
           <span class="key-status" id="statusOpentip"></span>
         </div>
         <p class="intel-link">Inscription gratuite : <span class="selectable">https://opentip.kaspersky.com/</span></p>
         <span class="intel-name" title="Rapports de menaces communautaires">AlienVault OTX</span>
         <div class="key-row">
           <input type="password" class="key-input" id="keyOtx" placeholder="Clé OTX" autocomplete="off" />
-          <button class="btn-save-key" data-provider="otx">Save</button>
-          <button class="btn-del-key" data-provider="otx">Delete</button>
+          <button class="btn-save-key" data-provider="otx">Enregistrer</button>
+          <button class="btn-del-key" data-provider="otx">Supprimer</button>
           <span class="key-status" id="statusOtx"></span>
         </div>
         <p class="intel-link">Inscription gratuite : <span class="selectable">https://otx.alienvault.com/</span></p>
         <span class="intel-name" title="Une clé pour MalwareBazaar, ThreatFox et YARAify">abuse.ch</span>
         <div class="key-row">
           <input type="password" class="key-input" id="keyAbusech" placeholder="Auth-Key abuse.ch" autocomplete="off" />
-          <button class="btn-save-key" data-provider="abusech">Save</button>
-          <button class="btn-del-key" data-provider="abusech">Delete</button>
+          <button class="btn-save-key" data-provider="abusech">Enregistrer</button>
+          <button class="btn-del-key" data-provider="abusech">Supprimer</button>
           <span class="key-status" id="statusAbusech"></span>
         </div>
         <p class="intel-link">Inscription gratuite : <span class="selectable">https://auth.abuse.ch/</span></p>
@@ -301,18 +301,18 @@
       </div>
 
       <div class="key-group">
-        <label>Scan Settings</label>
+        <label>Réglages d'analyse</label>
         <div class="setting-row">
-          <label><input type="checkbox" id="settingSkipGit" checked /> Skip .git directories</label>
+          <label><input type="checkbox" id="settingSkipGit" checked /> Ignorer les dossiers .git</label>
         </div>
         <div class="setting-row">
-          <label><input type="checkbox" id="settingSkipNode" checked /> Skip node_modules</label>
+          <label><input type="checkbox" id="settingSkipNode" checked /> Ignorer node_modules</label>
         </div>
         <div class="setting-row">
-          <label><input type="checkbox" id="settingScanBin" checked /> Scan executables (.exe, .dll)</label>
+          <label><input type="checkbox" id="settingScanBin" checked /> Analyser les exécutables (.exe, .dll)</label>
         </div>
         <div class="setting-row">
-          <label>Max file size (MB):
+          <label>Taille maximale par fichier (Mo) :
             <input type="number" id="settingMaxSize" value="50" min="1" max="500" class="num-input" />
           </label>
         </div>
@@ -333,7 +333,7 @@
 <div class="modal-overlay hidden" id="batchModal">
   <div class="modal modal-wide">
     <div class="modal-header">
-      <h2>🤖 Batch AI Fix</h2>
+      <h2>🤖 Correction groupée par IA</h2>
       <button class="btn-icon" id="btnCloseBatch">✕</button>
     </div>
     <div class="modal-body">
@@ -342,10 +342,10 @@
       <div id="batchConfig">
         <div class="notice">
           Claude analysera chaque fichier affecté et proposera des corrections.
-          Les patches sont prévisualisés <strong>avant</strong> d'être appliqués sur disque.
+          Les correctifs sont prévisualisés <strong>avant</strong> d'être appliqués sur disque.
         </div>
         <div class="setting-row" style="margin-top:12px;display:flex;align-items:center;gap:12px">
-          <label style="display:flex;align-items:center;gap:8px">Provider :
+          <label style="display:flex;align-items:center;gap:8px">Fournisseur :
             <select class="ai-provider-select" id="batchProvider">
               <option value="claude">Claude (Anthropic)</option>
               <option value="gemini">Gemini (Google)</option>
@@ -371,7 +371,7 @@
         <div class="batch-summary" id="batchSummary"></div>
         <div class="patch-list" id="patchList"></div>
         <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-          <button class="btn-secondary" id="btnApplyAll">✅ Appliquer tous les patches</button>
+          <button class="btn-secondary" id="btnApplyAll">✅ Appliquer tous les correctifs</button>
         </div>
       </div>
 

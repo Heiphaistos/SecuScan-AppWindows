@@ -501,6 +501,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .key-group label { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
 .key-row { display: flex; gap: 6px; align-items: center; }
 .key-input {
+  min-width: 0;
   flex: 1;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -532,7 +533,7 @@ input, select, textarea { font: inherit; color: inherit; }
   transition: background 0.15s;
 }
 .btn-del-key:hover { background: rgba(255, 45, 45, 0.18); }
-.key-status { font-size: 11px; }
+.key-status { font-size: 11px; white-space: nowrap; }
 .key-status.ok  { color: var(--low); }
 .key-status.nok { color: var(--text-muted); }
 .setting-row { font-size: 13px; display: flex; align-items: center; gap: 6px; }

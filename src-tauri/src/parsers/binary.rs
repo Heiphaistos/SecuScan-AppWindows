@@ -116,9 +116,9 @@ fn check_pe_protections(path_str: &str, pe: &PE, data: &[u8]) -> Vec<Vulnerabili
         findings.push(
             Vulnerability::new(
                 path_str, Severity::Medium, VulnCategory::MissingAslr,
-                "Missing ASLR (Address Space Layout Randomization)",
-                "Binary not compiled with /DYNAMICBASE. Predictable memory layout aids exploitation.",
-                "Recompile with /DYNAMICBASE linker flag (MSVC) or -pie (GCC/Clang).",
+                "ASLR absent (randomisation de l'espace d'adressage)",
+                "Binaire non compilé avec /DYNAMICBASE. Une disposition mémoire prévisible facilite l'exploitation.",
+                "Recompilez avec l'option d'éditeur de liens /DYNAMICBASE (MSVC) ou -pie (GCC/Clang).",
             ).with_snippet(snippet.clone()),
         );
     }
@@ -127,9 +127,9 @@ fn check_pe_protections(path_str: &str, pe: &PE, data: &[u8]) -> Vec<Vulnerabili
         findings.push(
             Vulnerability::new(
                 path_str, Severity::Medium, VulnCategory::MissingDep,
-                "Missing DEP/NX (Data Execution Prevention)",
-                "Binary not compiled with /NXCOMPAT. Stack/heap data can be executed as code.",
-                "Recompile with /NXCOMPAT linker flag.",
+                "DEP/NX absent (prévention de l'exécution des données)",
+                "Binaire non compilé avec /NXCOMPAT. Les données de la pile et du tas peuvent être exécutées comme du code.",
+                "Recompilez avec l'option d'éditeur de liens /NXCOMPAT.",
             ).with_snippet(snippet.clone()),
         );
     }
@@ -138,9 +138,9 @@ fn check_pe_protections(path_str: &str, pe: &PE, data: &[u8]) -> Vec<Vulnerabili
         findings.push(
             Vulnerability::new(
                 path_str, Severity::Low, VulnCategory::InsecureConfiguration,
-                "Control Flow Guard (CFG) not enabled",
-                "Binary lacks CFG protection. Indirect call targets are not validated.",
-                "Recompile with /guard:cf (MSVC) for modern Windows CFG protection.",
+                "Control Flow Guard (CFG) non activé",
+                "Le binaire n'a pas la protection CFG. Les cibles des appels indirects ne sont pas validées.",
+                "Recompilez avec /guard:cf (MSVC) pour bénéficier de la protection CFG des Windows récents.",
             ).with_snippet(snippet),
         );
     }
@@ -206,26 +206,43 @@ fn run_yara(path_str: &str, data: &[u8]) -> Vec<Vulnerability> {
             _          => Severity::Medium,
         };
 
-        let (category, remediation): (VulnCategory, &str) = match rule_id {
-            "DLLInjectionAPIs" | "ProcessHollowing" => (
+        // Description affichée en français ; la méta `description` (anglais) du
+        // source YARA ne sert que de repli pour une règle ajoutée sans traduction.
+        let (category, description_fr, remediation): (VulnCategory, Option<&str>, &str) = match rule_id {
+            "DLLInjectionAPIs" => (
                 VulnCategory::DllInjection,
-                "Investigate binary origin. Run in sandbox. Block execution via AppLocker.",
+                Some("Trio classique d'API d'injection de DLL (VirtualAllocEx, WriteProcessMemory, CreateRemoteThread)."),
+                "Recherchez l'origine du binaire. Exécutez-le dans un bac à sable. Bloquez son exécution via AppLocker.",
+            ),
+            "ProcessHollowing" => (
+                VulnCategory::DllInjection,
+                Some("Ensemble d'API du « process hollowing » (vider un processus pour y loger un autre code)."),
+                "Recherchez l'origine du binaire. Exécutez-le dans un bac à sable. Bloquez son exécution via AppLocker.",
             ),
             "PersistenceRunKeys" => (
                 VulnCategory::SuspiciousPersistence,
-                "Audit binary behavior. Remove if unauthorized. Monitor registry writes.",
+                Some("Persistance par clé de registre Run (démarrage automatique)."),
+                "Auditez le comportement du binaire. Supprimez-le s'il n'est pas autorisé. Surveillez les écritures dans le registre.",
             ),
             "RansomwareIndicators" => (
                 VulnCategory::RansomwareIndicator,
-                "Do NOT execute. Isolate system. Analyze in air-gapped sandbox.",
+                Some("Suppression des clichés instantanés et motifs de chiffrement (rançongiciel)."),
+                "NE PAS exécuter. Isolez le système. Analysez-le dans un bac à sable isolé du réseau.",
             ),
             "SuspiciousShellcode" => (
                 VulnCategory::MalwareIndicator,
-                "Binary likely contains shellcode. Quarantine immediately.",
+                Some("Suite de NOP ou d'INT3 — indice de shellcode."),
+                "Le binaire contient probablement du shellcode. Mettez-le en quarantaine immédiatement.",
+            ),
+            "PackerUPX" => (
+                VulnCategory::MalwareIndicator,
+                Some("Signature du compresseur d'exécutables UPX."),
+                "Motifs suspects détectés. Analysez-le dans un bac à sable avant toute exécution.",
             ),
             _ => (
                 VulnCategory::MalwareIndicator,
-                "Suspicious patterns detected. Analyze in a sandbox before execution.",
+                None,
+                "Motifs suspects détectés. Analysez-le dans un bac à sable avant toute exécution.",
             ),
         };
 
@@ -247,7 +264,7 @@ fn run_yara(path_str: &str, data: &[u8]) -> Vec<Vulnerability> {
                 severity,
                 category,
                 &format!("YARA: {rule_id}"),
-                &description,
+                description_fr.unwrap_or(&description),
                 remediation,
             )
             .with_match(matched_strings.join(", ")),

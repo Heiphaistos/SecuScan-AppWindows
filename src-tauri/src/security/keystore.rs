@@ -48,7 +48,7 @@ fn slot<'a>(stored: &'a mut StoredKeys, key_name: &str) -> Result<&'a mut Option
         "opentip"      => &mut stored.opentip_enc,
         "otx"          => &mut stored.otx_enc,
         "abusech"      => &mut stored.abusech_enc,
-        other          => return Err(format!("Unknown key name: {other}")),
+        other          => return Err(format!("Nom de clé inconnu : {other}")),
     })
 }
 
@@ -102,7 +102,7 @@ mod dpapi {
             );
 
             if ok == 0 {
-                return Err(format!("CryptProtectData failed: {}", std::io::Error::last_os_error()));
+                return Err(format!("Échec de CryptProtectData : {}", std::io::Error::last_os_error()));
             }
 
             let result = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
@@ -137,7 +137,7 @@ mod dpapi {
             );
 
             if ok == 0 {
-                return Err(format!("CryptUnprotectData failed: {}", std::io::Error::last_os_error()));
+                return Err(format!("Échec de CryptUnprotectData : {}", std::io::Error::last_os_error()));
             }
 
             let result = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();

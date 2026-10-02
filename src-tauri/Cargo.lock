@@ -4426,7 +4426,7 @@ dependencies = [
 
 [[package]]
 name = "secuscan-ai"
-version = "1.4.1"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
