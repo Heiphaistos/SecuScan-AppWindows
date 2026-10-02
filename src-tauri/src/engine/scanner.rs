@@ -171,7 +171,7 @@ pub async fn run_scan(
         return Err("Le chemin de scan doit être absolu".to_string());
     }
     if !root.exists() {
-        return Err(format!("Path does not exist: {target}"));
+        return Err(format!("Le chemin n'existe pas : {target}"));
     }
     if !root.is_dir() {
         return Err(format!("Le chemin doit être un dossier: {target}"));

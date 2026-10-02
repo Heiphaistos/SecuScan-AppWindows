@@ -39,10 +39,10 @@ fn knowledge(v: &Vulnerability) -> Kb {
     }
     // ── Secrets au format propre à un fournisseur : très spécifiques ──
     if matches!(v.category, VulnCategory::ApiKeyLeak)
-        && !has("Google OAuth Client ID")
+        && !has("Identifiant client OAuth Google")
         && !has("Firebase")
-        && !has("Slack Webhook")
-        && !has("Twilio API Key SID")
+        && !has("webhook Slack")
+        && !has("SID de clé API Twilio")
     {
         return kb(
             "Une clé d'accès à un service en ligne est écrite en clair dans le fichier.",
@@ -51,7 +51,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
             82,
         );
     }
-    if has("Google OAuth Client ID") {
+    if has("Identifiant client OAuth Google") {
         return kb(
             "Un identifiant de client OAuth Google est présent.",
             "Combiné au secret client, il permettrait d'usurper l'application.",
@@ -67,7 +67,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
             22,
         );
     }
-    if has("Slack Webhook") || has("Twilio API Key SID") {
+    if has("webhook Slack") || has("SID de clé API Twilio") {
         return kb(
             "Un identifiant d'intégration (webhook Slack, SID Twilio) est présent.",
             "Un webhook permet à quiconque de publier des messages dans le canal ; un SID aide à cibler le compte.",
@@ -75,7 +75,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
             55,
         );
     }
-    if has("Private Key") || has("Private Key Material") {
+    if has("Clé privée") || has("Clé privée") {
         return kb(
             "Une clé privée (RSA, EC, SSH, PGP…) est écrite dans le fichier.",
             "Une clé privée permet de déchiffrer des communications, signer au nom du propriétaire ou se connecter à des serveurs.",
@@ -83,7 +83,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
             78,
         );
     }
-    if has("JWT Token Exposed") {
+    if has("Jeton JWT exposé") {
         return kb(
             "Un jeton d'authentification JWT complet est présent.",
             "S'il n'a pas expiré, il permet de se faire passer pour l'utilisateur concerné.",
@@ -176,7 +176,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
 
     // ── Scripts (comportements) ──
     let script_kb: Option<Kb> = match t {
-        _ if has("Encoded Command") => Some(kb(
+        _ if has("PowerShell encodée") => Some(kb(
             "Lance PowerShell avec une commande encodée en Base64, donc illisible.",
             "Masquer la commande exécutée est une technique d'évasion typique des malwares.",
             "Des outils d'administration (SCCM, Intune) encodent leurs commandes pour éviter les problèmes de guillemets.",
@@ -188,7 +188,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
             "Certains installeurs officiels l'utilisent pour exécuter un script de leur propre domaine.",
             40,
         )),
-        _ if has("Remote Payload Download") || has("BITS Transfer") => Some(kb(
+        _ if has("téléchargement d'une charge utile distante") || has("Transfert BITS") => Some(kb(
             "Télécharge un fichier ou un script depuis Internet.",
             "Un « dropper » récupère ainsi la charge malveillante.",
             "Les scripts d'installation et de mise à jour téléchargent légitimement des outils officiels.",
@@ -206,55 +206,55 @@ fn knowledge(v: &Vulnerability) -> Kb {
             "Très rare : vieux outils internes d'entreprise.",
             65,
         )),
-        _ if has("Set-MpPreference") || has("Security Service Stopped") || has("Antivirus Registry") => Some(kb(
+        _ if has("Set-MpPreference") || has("Service de sécurité arrêté") || has("registre de l'antivirus") => Some(kb(
             "Désactive ou affaiblit l'antivirus Windows Defender ou un service de sécurité.",
             "Un malware coupe la protection avant d'agir.",
             "Scripts « d'optimisation » ou de laboratoire (déconseillés mais pas malveillants).",
             62,
         )),
-        _ if has("Defender Exclusion") => Some(kb(
+        _ if has("Exclusion Windows Defender") => Some(kb(
             "Ajoute un dossier ou une extension aux exclusions de Windows Defender.",
             "Le malware exclut son propre dossier pour ne jamais être analysé.",
             "Développeurs et serveurs excluent des dossiers de compilation pour la performance.",
             48,
         )),
-        _ if has("Run As / UAC Bypass") => Some(kb(
+        _ if has("contournement de l'UAC") => Some(kb(
             "Demande ou contourne l'élévation en administrateur.",
             "Un contournement d'UAC donne les droits admin sans confirmation de l'utilisateur.",
             "« Exécuter en tant qu'administrateur » est normal dans un script d'installation.",
             30,
         )),
-        _ if has("Sensitive Windows Privilege") => Some(kb(
+        _ if has("Privilège Windows sensible") => Some(kb(
             "Référence un privilège Windows sensible (débogage, prise de possession…).",
             "Ces privilèges permettent de lire la mémoire d'autres programmes (vol d'identifiants).",
             "Outils d'administration et de diagnostic.",
             20,
         )),
-        _ if has("Local User / Admin Group") => Some(kb(
+        _ if has("utilisateur local / du groupe Administrateurs") => Some(kb(
             "Crée un compte ou modifie le groupe Administrateurs.",
             "Un attaquant ajoute un compte caché pour garder l'accès.",
             "Scripts de provisionnement de postes par un administrateur.",
             42,
         )),
-        _ if has("Hidden Execution Flags") => Some(kb(
+        _ if has("options d'exécution masquée") => Some(kb(
             "Lance PowerShell sans fenêtre et/ou sans politique d'exécution.",
             "Cache l'exécution à l'utilisateur.",
             "Tâches planifiées et scripts de fond l'utilisent pour ne pas déranger.",
             28,
         )),
-        _ if has("Scheduled Task Created as SYSTEM") => Some(kb(
+        _ if has("Tâche planifiée créée en SYSTEM") => Some(kb(
             "Crée une tâche planifiée qui s'exécute avec le compte SYSTEM.",
             "Persistance avec les droits maximum.",
             "Agents de mise à jour, antivirus et outils de gestion de parc font de même.",
             32,
         )),
-        _ if has("Registry Run Key") => Some(kb(
+        _ if has("clé de registre Run") => Some(kb(
             "Inscrit un programme au démarrage automatique via le registre.",
             "Persistance : le malware se relance à chaque démarrage.",
             "Très courant pour les logiciels légitimes qui démarrent avec Windows.",
             22,
         )),
-        _ if has("WMI Process Creation") => Some(kb(
+        _ if has("Création de processus via WMI") => Some(kb(
             "Crée un processus via WMI.",
             "Exécution discrète ou à distance, utilisée pour le déplacement latéral.",
             "Outils d'administration et d'inventaire.",
@@ -272,7 +272,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
             "Scripts d'administration anciens mais légitimes.",
             15,
         )),
-        _ if has("Event Log Clearing") => Some(kb(
+        _ if has("Effacement des journaux d'événements") => Some(kb(
             "Efface les journaux d'événements Windows.",
             "Un attaquant efface ses traces.",
             "Nettoyage de machines de test.",
@@ -284,7 +284,7 @@ fn knowledge(v: &Vulnerability) -> Kb {
             "C'est la méthode d'installation officielle de nombreux outils (rustup, Homebrew, nvm…).",
             22,
         )),
-        _ if has("Clipboard Access") => Some(kb(
+        _ if has("Accès au presse-papiers") => Some(kb(
             "Lit ou modifie le presse-papiers.",
             "Les « clippers » remplacent une adresse de portefeuille copiée.",
             "Copier-coller automatisé : très courant.",
@@ -296,37 +296,37 @@ fn knowledge(v: &Vulnerability) -> Kb {
             "Uniquement dans du matériel de recherche en sécurité.",
             88,
         )),
-        _ if has("Reflective Assembly Load") => Some(kb(
+        _ if has("chargement réflectif d'assembly") => Some(kb(
             "Charge un programme .NET directement en mémoire.",
             "Exécution « sans fichier » d'outils offensifs.",
             "Plugins et outils d'administration chargent des bibliothèques dynamiquement.",
             40,
         )),
-        _ if has("Base64 Decoding") => Some(kb(
+        _ if has("Décodage Base64") => Some(kb(
             "Décode des données Base64.",
             "Peut dissimuler une charge.",
             "Très courant : certificats, images, configuration.",
             12,
         )),
-        _ if has("PowerShell Obfuscation") => Some(kb(
+        _ if has("marqueurs d'obfuscation") => Some(kb(
             "Le script contient des marqueurs d'obfuscation (caractères d'échappement, concaténations).",
             "Rend le code illisible pour échapper aux antivirus.",
             "Scripts générés automatiquement ou minifiés.",
             50,
         )),
-        _ if has("Credential Store Copy") => Some(kb(
+        _ if has("Copie du magasin d'identifiants") => Some(kb(
             "Copie la base des comptes Windows (NTDS.dit / SAM).",
             "Vol de tous les mots de passe du domaine ou de la machine.",
             "Sauvegardes d'annuaire par un administrateur (rare).",
             78,
         )),
-        _ if has("VSS Shadow Storage") => Some(kb(
+        _ if has("stockage des clichés VSS") => Some(kb(
             "Réduit l'espace des clichés instantanés, ce qui les supprime.",
             "Technique de rançongiciel pour empêcher la restauration.",
             "Maintenance disque (rare).",
             75,
         )),
-        _ if has("Alternate Data Stream") => Some(kb(
+        _ if has("flux de données alternatifs") => Some(kb(
             "Utilise un flux de données alternatif NTFS (fichier caché dans un autre).",
             "Dissimulation de charge.",
             "Windows marque les fichiers téléchargés avec un ADS (Zone.Identifier) : très courant.",
@@ -340,26 +340,26 @@ fn knowledge(v: &Vulnerability) -> Kb {
 
     // ── Code source (SAST) : par catégorie, ajusté par règle ──
     let base = match t {
-        _ if has("Direct execute()") || has("f-string") || has("ORM raw") => 55,
-        _ if has("String concatenation in query") => 42,
-        _ if has("PHP superglobal echoed") => 75,
-        _ if has("dangerouslySetInnerHTML") || has("Go text/template") => 30,
+        _ if has("execute() direct") || has("f-string") || has("requête brute ORM") => 55,
+        _ if has("concaténation de chaîne dans une requête") => 42,
+        _ if has("superglobale PHP affichée") => 75,
+        _ if has("dangerouslySetInnerHTML") || has("text/template Go") => 30,
         _ if has("innerHTML") || has("document.write") => 40,
         _ if has("eval()") => 40,
-        _ if has("Weak Cryptographic Function") => 28,
+        _ if has("Fonction cryptographique faible") => 28,
         _ if has("ECB") => 70,
-        _ if has("CSPRNG Missing") => 25,
-        _ if has("Weak Randomness for Security") => 60,
-        _ if has("Wildcard origin") => 45,
-        _ if has("Origin Reflection") => 62,
+        _ if has("CSPRNG absent") => 25,
+        _ if has("Aléa faible pour une valeur de sécurité") => 60,
+        _ if has("origine générique") => 45,
+        _ if has("réflexion de l'origine") => 62,
         _ if has("alg:none") => 80,
-        _ if has("TLS Certificate Verification Disabled") => 70,
-        _ if has("Debug Mode") => 50,
-        _ if has("Cloud Metadata") => 35,
-        _ if has("Sensitive Data in URL") => 40,
-        _ if has("Insecure Temporary File") => 35,
-        _ if has("GraphQL Introspection") => 40,
-        _ if has("Prototype Pollution") => 35,
+        _ if has("Vérification des certificats TLS désactivée") => 70,
+        _ if has("Mode débogage") => 50,
+        _ if has("métadonnées cloud") => 35,
+        _ if has("Donnée sensible dans la chaîne de requête") => 40,
+        _ if has("fichier temporaire non sécurisée") => 35,
+        _ if has("Introspection GraphQL") => 40,
+        _ if has("Pollution de prototype") => 35,
         _ if has("XXE") => 45,
         _ => match v.category {
             VulnCategory::InsecureDeserialization => 52,

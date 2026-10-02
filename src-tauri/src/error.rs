@@ -2,37 +2,37 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SecuScanError {
-    #[error("IO error: {0}")]
+    #[error("Erreur d'entrée/sortie : {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Parse error: {0}")]
+    #[error("Erreur d'analyse : {0}")]
     Parse(String),
 
-    #[error("YARA error: {0}")]
+    #[error("Erreur YARA : {0}")]
     Yara(String),
 
-    #[error("LLM API error: {0}")]
+    #[error("Erreur de l'API d'IA : {0}")]
     LlmApi(String),
 
-    #[error("DPAPI error: {0}")]
+    #[error("Erreur DPAPI : {0}")]
     Dpapi(String),
 
-    #[error("JSON error: {0}")]
+    #[error("Erreur JSON : {0}")]
     Json(#[from] serde_json::Error),
 
-    #[error("HTTP error: {0}")]
+    #[error("Erreur HTTP : {0}")]
     Http(#[from] reqwest::Error),
 
-    #[error("Access denied: {0}")]
+    #[error("Accès refusé : {0}")]
     AccessDenied(String),
 
-    #[error("Invalid path: {0}")]
+    #[error("Chemin invalide : {0}")]
     InvalidPath(String),
 
-    #[error("Scan cancelled")]
+    #[error("Analyse annulée")]
     Cancelled,
 
-    #[error("Unknown error: {0}")]
+    #[error("Erreur inconnue : {0}")]
     Other(String),
 }
 

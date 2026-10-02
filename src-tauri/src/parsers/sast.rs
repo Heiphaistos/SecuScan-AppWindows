@@ -37,23 +37,23 @@ fn get_rules() -> &'static Vec<Rule> {
             r!(
                 r#"(?i)(execute|exec)\s*\(\s*["']?\s*(SELECT|INSERT|UPDATE|DELETE|DROP|UNION)"#,
                 Severity::Critical, VulnCategory::SqlInjection,
-                "SQL Injection — Direct execute()",
-                "Raw SQL string passed directly to execute(). Attacker controls query structure.",
-                "Use parameterized queries / prepared statements. Never concatenate user input into SQL."
+                "Injection SQL — execute() direct",
+                "Chaîne SQL brute passée directement à execute(). L'attaquant contrôle la structure de la requête.",
+                "Utilisez des requêtes paramétrées / requêtes préparées. Ne concaténez jamais d'entrée utilisateur dans du SQL."
             ),
             r!(
                 r#"(?i)["']\s*\+\s*(username|user_?id|email|password|id|input|param|req\.(body|query|params))"#,
                 Severity::High, VulnCategory::SqlInjection,
-                "SQL Injection — String concatenation in query",
-                "User-controlled value concatenated directly into query string.",
-                "Replace concatenation with bound parameters (?, $1, @p1…)."
+                "Injection SQL — concaténation de chaîne dans une requête",
+                "Valeur contrôlée par l'utilisateur concaténée directement dans la chaîne de requête.",
+                "Remplacez la concaténation par des paramètres liés (?, $1, @p1…)."
             ),
             r!(
                 r#"(?i)f["'].*\b(SELECT|INSERT|UPDATE|DELETE)\b.*\{[^}]+\}"#,
                 Severity::Critical, VulnCategory::SqlInjection,
-                "SQL Injection — f-string with user input",
-                "Python f-string or format-string used to build SQL.",
-                "Use parameterized queries with cursor.execute(sql, params)."
+                "Injection SQL — f-string avec entrée utilisateur",
+                "f-string ou chaîne de formatage Python utilisée pour construire du SQL.",
+                "Utilisez des requêtes paramétrées avec cursor.execute(sql, params)."
             ),
             // ── XSS ─────────────────────────────────────────────────────
             r!(
@@ -63,16 +63,16 @@ fn get_rules() -> &'static Vec<Rule> {
                 // (variable, appel, concatenation), ou un gabarit interpole.
                 r#"\.innerHTML\s*[+]?=\s*(?:[^"'`\s;]|`[^`]*\$\{)"#,
                 Severity::High, VulnCategory::Xss,
-                "XSS — Unsafe innerHTML assignment",
-                "Dynamic content written to innerHTML without sanitization.",
-                "Use textContent, or sanitize with DOMPurify before innerHTML assignment."
+                "XSS — affectation innerHTML non sécurisée",
+                "Contenu dynamique écrit dans innerHTML sans assainissement.",
+                "Utilisez textContent, ou assainissez avec DOMPurify avant l'affectation à innerHTML."
             ),
             r!(
                 r#"document\.write\s*\([^"'`]"#,
                 Severity::High, VulnCategory::Xss,
-                "XSS — document.write() with dynamic content",
-                "document.write() can inject attacker-controlled HTML.",
-                "Avoid document.write(). Use DOM manipulation APIs instead."
+                "XSS — document.write() avec contenu dynamique",
+                "document.write() peut injecter du HTML contrôlé par un attaquant.",
+                "Évitez document.write(). Utilisez plutôt les API de manipulation du DOM."
             ),
             r!(
                 // Sans look-ahead : est dangereuse une evaluation dont
@@ -80,315 +80,315 @@ fn get_rules() -> &'static Vec<Rule> {
                 // expression construite plutot qu'une chaine litterale.
                 r#"(?i)eval\s*\(\s*[^"'`\s)][^)]*\)"#,
                 Severity::Critical, VulnCategory::Xss,
-                "XSS / RCE — eval() with dynamic expression",
-                "eval() executes arbitrary JS. If input is attacker-controlled → RCE in browser.",
-                "Replace eval() with JSON.parse() for data, or refactor to remove dynamic code evaluation."
+                "XSS / RCE — eval() avec expression dynamique",
+                "eval() exécute du JavaScript arbitraire. Si l'entrée est contrôlée par un attaquant → exécution de code (RCE) dans le navigateur.",
+                "Remplacez eval() par JSON.parse() pour les données, ou refactorisez pour supprimer l'évaluation de code dynamique."
             ),
             r!(
                 r#"(?i)(echo|print)\s+\$_(GET|POST|REQUEST|COOKIE|SERVER)"#,
                 Severity::Critical, VulnCategory::Xss,
-                "XSS — PHP superglobal echoed unescaped",
-                "User input from $_GET/$_POST/etc directly printed without encoding.",
-                "Use htmlspecialchars($var, ENT_QUOTES, 'UTF-8') before echoing user input."
+                "XSS — superglobale PHP affichée sans échappement",
+                "Entrée utilisateur issue de $_GET/$_POST/etc. affichée directement sans encodage.",
+                "Utilisez htmlspecialchars($var, ENT_QUOTES, 'UTF-8') avant d'afficher une entrée utilisateur."
             ),
             r!(
                 r#"(?i)dangerouslySetInnerHTML\s*=\s*\{\s*\{"#,
                 Severity::Medium, VulnCategory::Xss,
-                "XSS — React dangerouslySetInnerHTML",
-                "dangerouslySetInnerHTML bypasses React's XSS protection. Verify source is trusted.",
-                "Sanitize content with DOMPurify before passing to dangerouslySetInnerHTML."
+                "XSS — dangerouslySetInnerHTML (React)",
+                "dangerouslySetInnerHTML contourne la protection XSS de React. Vérifiez que la source est fiable.",
+                "Assainissez le contenu avec DOMPurify avant de le passer à dangerouslySetInnerHTML."
             ),
             // ── Command Injection ────────────────────────────────────────
             r!(
                 r#"(?i)(os\.system|subprocess\.(call|run|Popen)|exec\(|shell_exec\(|passthru\(|system\()\s*[^"'`\n]*\+"#,
                 Severity::Critical, VulnCategory::CommandInjection,
-                "Command Injection — Shell call with string concatenation",
-                "User-controlled string concatenated into shell command.",
-                "Use shell=False with argument list in subprocess. Validate/whitelist all inputs."
+                "Injection de commande — appel shell avec concaténation de chaîne",
+                "Chaîne contrôlée par l'utilisateur concaténée dans une commande shell.",
+                "Utilisez shell=False avec une liste d'arguments dans subprocess. Validez / filtrez par liste blanche toutes les entrées."
             ),
             // ── Path Traversal ───────────────────────────────────────────
             r!(
                 r#"(?i)(open|read_file|include|require|fopen)\s*\([^)]*\$_(GET|POST|REQUEST|COOKIE)"#,
                 Severity::High, VulnCategory::PathTraversal,
-                "Path Traversal — User input in file open",
-                "File path constructed from user input allows directory traversal (../../etc/passwd).",
-                "Validate file paths against a whitelist or use realpath() and assert it starts with allowed base."
+                "Traversée de répertoire — entrée utilisateur dans l'ouverture d'un fichier",
+                "Un chemin de fichier construit à partir d'une entrée utilisateur permet la traversée de répertoire (../../etc/passwd).",
+                "Validez les chemins de fichier par rapport à une liste blanche, ou utilisez realpath() et vérifiez qu'ils commencent par la base autorisée."
             ),
             // ── Weak Crypto ───────────────────────────────────────────────
             r!(
                 r#"(?i)\b(md5|sha1|des|rc4|3des|blowfish)\s*\("#,
                 Severity::Medium, VulnCategory::WeakCrypto,
-                "Weak Cryptographic Function",
-                "MD5/SHA1/DES/RC4 are cryptographically broken.",
-                "Replace with SHA-256+/AES-256-GCM/ChaCha20-Poly1305. For passwords: bcrypt/argon2."
+                "Fonction cryptographique faible",
+                "MD5/SHA1/DES/RC4 sont cassés sur le plan cryptographique.",
+                "Remplacez par SHA-256+/AES-256-GCM/ChaCha20-Poly1305. Pour les mots de passe : bcrypt/argon2."
             ),
             r!(
                 r#"(?i)(ECB)\s*mode|AES.*ECB"#,
                 Severity::High, VulnCategory::WeakCrypto,
-                "Insecure Cipher Mode — ECB",
-                "ECB mode leaks patterns. Never use for security-sensitive data.",
-                "Use AES-GCM or ChaCha20-Poly1305 (authenticated encryption)."
+                "Mode de chiffrement non sécurisé — ECB",
+                "Le mode ECB laisse fuiter des motifs. Ne jamais l'utiliser pour des données sensibles.",
+                "Utilisez AES-GCM ou ChaCha20-Poly1305 (chiffrement authentifié)."
             ),
             r!(
                 r#"(?i)random\.(random|randint|randrange|choice)\s*\("#,
                 Severity::High, VulnCategory::WeakCrypto,
-                "CSPRNG Missing — Non-cryptographic random",
-                "Standard random() is not cryptographically secure.",
-                "Use secrets.token_hex() (Python), crypto.randomBytes() (Node), rand::thread_rng() (Rust)."
+                "CSPRNG absent — aléatoire non cryptographique",
+                "La fonction random() standard n'est pas sûre sur le plan cryptographique.",
+                "Utilisez secrets.token_hex() (Python), crypto.randomBytes() (Node), rand::thread_rng() (Rust)."
             ),
             // ── CORS ──────────────────────────────────────────────────────
             r!(
                 r#"(?i)Access-Control-Allow-Origin[^:]*:\s*\*"#,
                 Severity::Medium, VulnCategory::CorsMisconfiguration,
-                "CORS — Wildcard origin (*)",
-                "Access-Control-Allow-Origin: * allows any website cross-origin requests.",
-                "Restrict allowed origins to an explicit whitelist."
+                "CORS — origine générique (*)",
+                "Access-Control-Allow-Origin: * autorise n'importe quel site à faire des requêtes cross-origin.",
+                "Limitez les origines autorisées à une liste blanche explicite."
             ),
             // ── Insecure Deserialization ──────────────────────────────────
             r!(
                 r#"(?i)(pickle\.loads?|yaml\.load\s*\([^,)]+\)|marshal\.loads?|unserialize\()"#,
                 Severity::Critical, VulnCategory::InsecureDeserialization,
-                "Insecure Deserialization",
-                "Deserializing untrusted data can lead to arbitrary code execution.",
-                "Use yaml.safe_load(). Never pickle untrusted input. Use JSON for data exchange."
+                "Désérialisation non sécurisée",
+                "Désérialiser des données non fiables peut mener à l'exécution de code arbitraire.",
+                "Utilisez yaml.safe_load(). N'utilisez jamais pickle sur une entrée non fiable. Utilisez JSON pour l'échange de données."
             ),
             // ── Hardcoded Secrets in code ─────────────────────────────────
             r!(
                 r#"-----BEGIN (RSA|EC|DSA|OPENSSH|PGP) PRIVATE KEY-----"#,
                 Severity::Critical, VulnCategory::HardcodedSecret,
-                "Hardcoded Private Key",
-                "Private key material embedded in source code.",
-                "Remove key from code immediately. Rotate the key. Store in secrets manager or HSM."
+                "Clé privée en dur",
+                "Clé privée intégrée dans le code source.",
+                "Retirez immédiatement la clé du code. Faites-la tourner. Stockez-la dans un gestionnaire de secrets ou un HSM."
             ),
             r!(
                 r#"(?i)(api[_-]?key|api[_-]?secret|auth[_-]?token)\s*[:=]\s*["'][a-zA-Z0-9_\-./+]{16,}["']"#,
                 Severity::Critical, VulnCategory::HardcodedSecret,
-                "Hardcoded API Key / Secret",
-                "API key or secret token hardcoded in source. Leaked via version control.",
-                "Move to environment variables (.env) or a secrets manager. Rotate the exposed key."
+                "Clé API / secret en dur",
+                "Clé API ou jeton secret en dur dans le code source. Il fuit via le gestionnaire de versions.",
+                "Déplacez-le dans des variables d'environnement (.env) ou un gestionnaire de secrets. Faites tourner la clé exposée."
             ),
             r!(
                 r#"(?i)(password|passwd|pwd)\s*[:=]\s*["'][^"']{6,}["']"#,
                 Severity::High, VulnCategory::HardcodedSecret,
-                "Hardcoded Password",
-                "Plain-text password found in source code.",
-                "Remove from code. Use environment variables. Hash passwords with bcrypt/argon2 at rest."
+                "Mot de passe en dur",
+                "Mot de passe en clair trouvé dans le code source.",
+                "Retirez-le du code. Utilisez des variables d'environnement. Stockez les mots de passe hachés avec bcrypt/argon2."
             ),
             // ── Open Redirect ─────────────────────────────────────────────
             r!(
                 r#"(?i)(redirect|location)\s*\([^)]*\$_(GET|POST|REQUEST|COOKIE)"#,
                 Severity::Medium, VulnCategory::OpenRedirect,
-                "Open Redirect",
-                "Redirect destination derived from user input without validation.",
-                "Validate redirect URL against a whitelist of allowed domains."
+                "Redirection ouverte",
+                "Destination de redirection dérivée d'une entrée utilisateur sans validation.",
+                "Validez l'URL de redirection par rapport à une liste blanche de domaines autorisés."
             ),
             // ── SSRF ──────────────────────────────────────────────────────
             r!(
                 r#"(?i)(requests\.(get|post|put)|urllib\.request\.urlopen|fetch|axios\.(get|post)|http\.get|httpclient\.get)\s*\(\s*[^)]{0,40}(req\.(query|params|body)|request\.(args|form|get|post)|\$_(GET|POST|REQUEST))"#,
                 Severity::High, VulnCategory::InsecureConfiguration,
-                "SSRF — Server-side request to user-controlled URL",
-                "HTTP client fetches a URL derived from user input. Attacker can reach internal services (169.254.169.254, localhost, cloud metadata).",
-                "Whitelist allowed hosts/schemes. Block private IP ranges (10/8, 172.16/12, 192.168/16, 169.254/16) and metadata endpoints."
+                "SSRF — requête côté serveur vers une URL contrôlée par l'utilisateur",
+                "Le client HTTP récupère une URL dérivée d'une entrée utilisateur. L'attaquant peut atteindre des services internes (169.254.169.254, localhost, métadonnées cloud).",
+                "Filtrez par liste blanche les hôtes / schémas autorisés. Bloquez les plages d'IP privées (10/8, 172.16/12, 192.168/16, 169.254/16) et les points d'accès de métadonnées."
             ),
             // ── SSTI ──────────────────────────────────────────────────────
             r!(
                 r#"(?i)(render_template_string|env\.from_string|new\s+Function)\s*\(\s*[^)]{0,40}(\+|\$\{|%s|\{\{|f["'])"#,
                 Severity::Critical, VulnCategory::ArbitraryCodeExecution,
-                "SSTI — Server-Side Template Injection",
-                "User input concatenated into a template string. Leads to RCE in Jinja2/Twig/Handlebars/Freemarker.",
-                "Never build templates from user input. Pass data as template variables, not as template source."
+                "SSTI — injection de template côté serveur",
+                "Entrée utilisateur concaténée dans une chaîne de template. Mène à une RCE dans Jinja2/Twig/Handlebars/Freemarker.",
+                "Ne construisez jamais de templates à partir d'une entrée utilisateur. Passez les données comme variables de template, pas comme source du template."
             ),
             // ── XXE ───────────────────────────────────────────────────────
             r!(
                 r#"(?i)(libxml_disable_entity_loader\s*\(\s*false|resolve_entities\s*=\s*True|noent\s*=\s*True|XMLParser\([^)]*resolve_entities|DocumentBuilderFactory\.newInstance\s*\()"#,
                 Severity::High, VulnCategory::InsecureDeserialization,
-                "XXE — XML External Entity processing enabled",
-                "XML parser resolves external entities, enabling local file disclosure and SSRF via crafted DTD.",
-                "Disable DTD/external entities: setFeature('disallow-doctype-decl', true) or defusedxml (Python)."
+                "XXE — traitement des entités externes XML activé",
+                "Le parseur XML résout les entités externes, ce qui permet la divulgation de fichiers locaux et une SSRF via une DTD forgée.",
+                "Désactivez la DTD / les entités externes : setFeature('disallow-doctype-decl', true) ou defusedxml (Python)."
             ),
             // ── NoSQL Injection ───────────────────────────────────────────
             r!(
                 r#"(?i)(find|findone|update|deleteone|deletemany)\s*\(\s*\{[^}]{0,60}(req\.(body|query|params)|\$where)"#,
                 Severity::High, VulnCategory::SqlInjection,
-                "NoSQL Injection — User input in query object",
-                "Raw user input placed into a MongoDB query object. Operators like $ne/$gt/$where bypass authentication.",
-                "Cast/validate input types. Reject query operators from user input. Enforce an ODM schema."
+                "Injection NoSQL — entrée utilisateur dans un objet de requête",
+                "Entrée utilisateur brute placée dans un objet de requête MongoDB. Des opérateurs comme $ne/$gt/$where contournent l'authentification.",
+                "Convertissez / validez les types des entrées. Rejetez les opérateurs de requête venant de l'utilisateur. Imposez un schéma ODM."
             ),
             // ── LDAP Injection ────────────────────────────────────────────
             r!(
                 r#"(?i)(search|bind)\s*\([^)]{0,60}(\(uid=|\(cn=|\(&)[^)]{0,40}(\+|\$\{|%s|f["'])"#,
                 Severity::High, VulnCategory::CommandInjection,
-                "LDAP Injection — Filter built from user input",
-                "LDAP filter concatenated with user input allows authentication bypass and directory data extraction.",
-                "Escape LDAP special characters (RFC 4515) or use parameterized filters."
+                "Injection LDAP — filtre construit à partir d'une entrée utilisateur",
+                "Un filtre LDAP concaténé avec une entrée utilisateur permet de contourner l'authentification et d'extraire des données de l'annuaire.",
+                "Échappez les caractères spéciaux LDAP (RFC 4515) ou utilisez des filtres paramétrés."
             ),
             // ── JWT misconfig ─────────────────────────────────────────────
             r!(
                 r#"(?i)(algorithms\s*[:=]\s*\[?\s*["']none["']|verify_signature\s*[:=]\s*False|jwt\.decode\([^)]{0,80}verify\s*=\s*False)"#,
                 Severity::Critical, VulnCategory::InsecureConfiguration,
-                "JWT — Signature verification disabled / alg:none",
-                "JWT accepted without verifying the signature (alg:none or verify=false). Attacker forges arbitrary tokens.",
-                "Always verify the signature with a fixed algorithm allowlist (HS256/RS256). Never accept 'none'."
+                "JWT — vérification de signature désactivée / alg:none",
+                "JWT accepté sans vérification de la signature (alg:none ou verify=false). L'attaquant peut forger des jetons arbitraires.",
+                "Vérifiez toujours la signature avec une liste fixe d'algorithmes autorisés (HS256/RS256). N'acceptez jamais 'none'."
             ),
             // ── Prototype Pollution ───────────────────────────────────────
             r!(
                 r#"(?i)(object\.assign|_\.merge|\bmerge|deepmerge|extend)\s*\(\s*[^)]{0,40}(req\.(body|query|params)|JSON\.parse)"#,
                 Severity::Medium, VulnCategory::InsecureConfiguration,
-                "Prototype Pollution — Unsafe merge of user input",
-                "Deep-merging attacker-controlled objects can pollute Object.prototype via __proto__/constructor.",
-                "Reject __proto__/constructor keys. Use Map or a hardened merge (lodash >= 4.17.21)."
+                "Pollution de prototype — fusion non sécurisée d'une entrée utilisateur",
+                "La fusion profonde d'objets contrôlés par un attaquant peut polluer Object.prototype via __proto__/constructor.",
+                "Rejetez les clés __proto__/constructor. Utilisez Map ou une fusion renforcée (lodash >= 4.17.21)."
             ),
             // ── Debug mode in production ───────────────────────────────────
             r!(
                 r#"(?i)(app\.run\([^)]{0,60}debug\s*=\s*True|\bDEBUG\s*[:=]\s*True|FLASK_DEBUG\s*=\s*1|django\.conf.*DEBUG\s*=\s*True)"#,
                 Severity::Medium, VulnCategory::InsecureConfiguration,
-                "Debug Mode Enabled",
-                "Framework debug mode exposes stack traces and an interactive console (Werkzeug RCE).",
-                "Disable debug in production. Set DEBUG=False / NODE_ENV=production."
+                "Mode débogage activé",
+                "Le mode débogage du framework expose les traces d'appels et une console interactive (RCE via Werkzeug).",
+                "Désactivez le débogage en production. Définissez DEBUG=False / NODE_ENV=production."
             ),
             // ── Disabled TLS verification ──────────────────────────────────
             r!(
                 r#"(?i)(verify\s*=\s*False|rejectUnauthorized\s*:\s*false|CURLOPT_SSL_VERIFYPEER\s*,\s*(0|false)|InsecureSkipVerify\s*:\s*true|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0)"#,
                 Severity::High, VulnCategory::InsecureConfiguration,
-                "TLS Certificate Verification Disabled",
-                "TLS/SSL certificate validation turned off. Enables man-in-the-middle attacks.",
-                "Never disable certificate verification. Fix the trust store / CA bundle instead."
+                "Vérification des certificats TLS désactivée",
+                "Validation des certificats TLS/SSL désactivée. Permet les attaques de l'homme du milieu.",
+                "Ne désactivez jamais la vérification des certificats. Corrigez plutôt le magasin de confiance / le bundle d'AC."
             ),
             // ── Zip Slip ───────────────────────────────────────────────────
             r!(
                 r#"(?i)(extractall\s*\(|\.getNextEntry\s*\(|tarfile\.extract)"#,
                 Severity::Medium, VulnCategory::PathTraversal,
-                "Zip Slip — Archive extraction without path validation",
-                "Extracting archive entries without validating names allows writing outside the target dir (../).",
-                "Validate each entry path resolves inside the destination before writing."
+                "Zip Slip — extraction d'archive sans validation des chemins",
+                "Extraire les entrées d'une archive sans valider leurs noms permet d'écrire hors du répertoire cible (../).",
+                "Vérifiez que le chemin de chaque entrée se résout à l'intérieur de la destination avant d'écrire."
             ),
             // ── Weak crypto parameters ─────────────────────────────────────
             r!(
                 r#"(?i)(createCipher\s*\(|IV\s*=\s*["'][0]{8,}|iv\s*=\s*bytes\(\s*\d+\s*\))"#,
                 Severity::Medium, VulnCategory::WeakCrypto,
-                "Static/Weak Crypto Parameters",
-                "Hardcoded/zero IV or deprecated createCipher (no IV). Weakens or breaks encryption.",
-                "Use a random IV per message (crypto.randomBytes / os.urandom). Prefer createCipheriv + AES-GCM."
+                "Paramètres cryptographiques statiques / faibles",
+                "IV en dur / nul ou createCipher obsolète (sans IV). Affaiblit ou casse le chiffrement.",
+                "Utilisez un IV aléatoire par message (crypto.randomBytes / os.urandom). Préférez createCipheriv + AES-GCM."
             ),
             // ── XSS via disabled escaping ──────────────────────────────────
             r!(
                 r#"(?i)(autoescape\s*=\s*False|\|\s*safe\b|mark_safe\s*\(|v-html\s*=)"#,
                 Severity::Medium, VulnCategory::Xss,
-                "XSS — Auto-escaping disabled / raw HTML binding",
-                "Template auto-escaping disabled or raw HTML bound (|safe, mark_safe, v-html). Renders unescaped user input.",
-                "Keep auto-escaping on. Sanitize with DOMPurify/bleach before marking content safe."
+                "XSS — échappement automatique désactivé / liaison HTML brute",
+                "Échappement automatique des templates désactivé ou HTML brut lié (|safe, mark_safe, v-html). Affiche une entrée utilisateur non échappée.",
+                "Gardez l'échappement automatique actif. Assainissez avec DOMPurify/bleach avant de marquer un contenu comme sûr."
             ),
             // ── SQL Injection — ORM raw query with interpolation ──────────
             r!(
                 r#"(?i)\.(raw|query)\s*\(\s*(`[^`]{0,80}\$\{|["'][^"']{0,80}["']\s*\+|f["'][^"']{0,80}\{)"#,
                 Severity::High, VulnCategory::SqlInjection,
-                "SQL Injection — ORM raw query with interpolation",
-                "Raw SQL passed to an ORM (.raw()/.query() in Sequelize/Django/GORM/knex) built with string interpolation or concatenation.",
-                "Use the ORM's parameter binding (replacements/params/$1) instead of interpolating user input."
+                "Injection SQL — requête brute ORM avec interpolation",
+                "SQL brut passé à un ORM (.raw()/.query() dans Sequelize/Django/GORM/knex) construit par interpolation ou concaténation de chaînes.",
+                "Utilisez la liaison de paramètres de l'ORM (replacements/params/$1) au lieu d'interpoler l'entrée utilisateur."
             ),
             // ── Insecure temp file ────────────────────────────────────────
             r!(
                 r#"(?i)(tempfile\.mktemp\s*\(|\bmktemp\s*\(|\btmpnam\s*\(|\btempnam\s*\(|\btmpfile\s*\()"#,
                 Severity::Medium, VulnCategory::InsecureConfiguration,
-                "Insecure Temporary File Creation",
-                "Predictable temp-file name (mktemp/tmpnam/tempfile.mktemp) — race condition / symlink attack (TOCTOU).",
-                "Use atomic APIs: tempfile.NamedTemporaryFile / mkstemp() (Python), mkstemp(3) (C), fs.mkdtemp (Node)."
+                "Création de fichier temporaire non sécurisée",
+                "Nom de fichier temporaire prévisible (mktemp/tmpnam/tempfile.mktemp) — situation de concurrence / attaque par lien symbolique (TOCTOU).",
+                "Utilisez des API atomiques : tempfile.NamedTemporaryFile / mkstemp() (Python), mkstemp(3) (C), fs.mkdtemp (Node)."
             ),
             // ── Insecure deserialization — Java ObjectInputStream ─────────
             r!(
                 r#"(?i)new\s+ObjectInputStream\s*\(|\.readObject\s*\(\s*\)|readUnshared\s*\(\s*\)|XMLDecoder\s*\("#,
                 Severity::Critical, VulnCategory::InsecureDeserialization,
-                "Insecure Deserialization — Java ObjectInputStream",
-                "Java native deserialization (ObjectInputStream.readObject / XMLDecoder) of untrusted data enables RCE via gadget chains.",
-                "Never deserialize untrusted input. Use a safe format (JSON) with a validating parser, or an allowlist ObjectInputFilter."
+                "Désérialisation non sécurisée — ObjectInputStream Java",
+                "La désérialisation native Java (ObjectInputStream.readObject / XMLDecoder) de données non fiables permet une RCE via des chaînes de gadgets.",
+                "Ne désérialisez jamais d'entrée non fiable. Utilisez un format sûr (JSON) avec un parseur qui valide, ou un ObjectInputFilter à liste blanche."
             ),
             // ── Go text/template used for HTML (XSS) ──────────────────────
             r!(
                 r#""text/template""#,
                 Severity::Medium, VulnCategory::Xss,
-                "XSS — Go text/template used for web output",
-                "text/template does not HTML-escape. Rendering it to a browser allows XSS.",
-                "Use html/template for any HTML/web output; it escapes contextually."
+                "XSS — text/template Go utilisé pour une sortie web",
+                "text/template n'échappe pas le HTML. L'afficher dans un navigateur permet une XSS.",
+                "Utilisez html/template pour toute sortie HTML/web ; il échappe selon le contexte."
             ),
             // ── GraphQL introspection enabled ─────────────────────────────
             r!(
                 r#"(?i)(introspection\s*:\s*true|graphiql\s*:\s*true|__schema\s*\{)"#,
                 Severity::Medium, VulnCategory::InsecureConfiguration,
-                "GraphQL Introspection / GraphiQL Enabled",
-                "Introspection or GraphiQL exposed in production leaks the full schema to attackers.",
-                "Disable introspection and GraphiQL in production."
+                "Introspection GraphQL / GraphiQL activé",
+                "L'introspection ou GraphiQL exposé en production révèle le schéma complet aux attaquants.",
+                "Désactivez l'introspection et GraphiQL en production."
             ),
             // ── Mass assignment ───────────────────────────────────────────
             r!(
                 r#"(?i)(\.update_attributes\b|params\.permit!|\.save\(\s*strict:\s*false|new\s+\w+\(\s*req\.body\s*\))"#,
                 Severity::High, VulnCategory::InsecureConfiguration,
-                "Mass Assignment — Unfiltered Model Binding",
-                "Binding the whole request body/params to a model lets attackers set unintended fields (is_admin, role).",
-                "Whitelist assignable fields (strong params / DTO). Never bind raw request bodies to models."
+                "Affectation de masse — liaison de modèle non filtrée",
+                "Lier tout le corps / les paramètres de la requête à un modèle permet aux attaquants de définir des champs non prévus (is_admin, role).",
+                "Listez explicitement les champs affectables (strong params / DTO). Ne liez jamais le corps brut d'une requête à un modèle."
             ),
             // ── XML entity expansion (billion laughs) ─────────────────────
             r!(
                 r#"(?i)<!ENTITY\s+\w+\s+["'][^"']{0,40}&\w+;|<!DOCTYPE[^>]{0,80}<!ENTITY"#,
                 Severity::High, VulnCategory::InsecureConfiguration,
-                "XML Entity Expansion (Billion Laughs DoS)",
-                "Nested internal DTD entities expand exponentially, exhausting memory/CPU (DoS).",
-                "Disable DTD processing. Cap entity expansion. Prefer a hardened XML parser (defusedxml)."
+                "Expansion d'entités XML (DoS Billion Laughs)",
+                "Des entités DTD internes imbriquées s'étendent de façon exponentielle et épuisent la mémoire / le CPU (DoS).",
+                "Désactivez le traitement des DTD. Limitez l'expansion des entités. Préférez un parseur XML renforcé (defusedxml)."
             ),
             // ── ReDoS — user-controlled regex ─────────────────────────────
             r!(
                 r#"(?i)new\s+RegExp\s*\(\s*[^)]{0,40}(req\.(query|params|body)|request\.|input)"#,
                 Severity::Medium, VulnCategory::InsecureConfiguration,
-                "ReDoS — Regex Built from User Input",
-                "Compiling a regex from user input allows catastrophic backtracking (denial of service).",
-                "Do not build regexes from user input, or use a linear-time engine (RE2) and bound input length."
+                "ReDoS — expression régulière construite à partir d'une entrée utilisateur",
+                "Compiler une expression régulière à partir d'une entrée utilisateur permet un retour arrière catastrophique (déni de service).",
+                "Ne construisez pas d'expressions régulières à partir d'une entrée utilisateur, ou utilisez un moteur en temps linéaire (RE2) et limitez la longueur de l'entrée."
             ),
             // ── Path traversal via join(user input) ───────────────────────
             r!(
                 r#"(?i)(path\.join|os\.path\.join)\s*\(\s*[^)]{0,40}(req\.(query|params|body)|request\.(args|form))"#,
                 Severity::High, VulnCategory::PathTraversal,
-                "Path Traversal — User Input in File Path Join",
-                "Joining user input into a filesystem path allows escaping the base directory (../../etc/passwd).",
-                "Resolve the final path and assert it stays within an allowed base; reject '..' segments."
+                "Traversée de répertoire — entrée utilisateur dans la jonction d'un chemin",
+                "Joindre une entrée utilisateur à un chemin du système de fichiers permet de sortir du répertoire de base (../../etc/passwd).",
+                "Résolvez le chemin final et vérifiez qu'il reste dans une base autorisée ; rejetez les segments '..'."
             ),
             // ── Dangerous URL scheme in request (SSRF/LFI) ────────────────
             r!(
                 r#"(?i)(fetch|requests\.(get|post)|urlopen|axios|curl_exec|file_get_contents|http\.get)\s*\(\s*[^)]{0,30}["'](gopher|dict|file|ftp)://"#,
                 Severity::High, VulnCategory::InsecureConfiguration,
-                "SSRF / LFI — Dangerous URL Scheme in Request",
-                "A request uses gopher://, dict://, file:// or ftp:// — schemes abused for SSRF pivoting and local file read.",
-                "Restrict outbound requests to http(s) and an allowlist of hosts. Reject non-http schemes."
+                "SSRF / LFI — schéma d'URL dangereux dans une requête",
+                "Une requête utilise gopher://, dict://, file:// ou ftp:// — des schémas détournés pour pivoter via SSRF et lire des fichiers locaux.",
+                "Limitez les requêtes sortantes à http(s) et à une liste blanche d'hôtes. Rejetez les schémas autres que http."
             ),
             // ── CORS origin reflection ────────────────────────────────────
             r!(
                 r#"(?i)(Access-Control-Allow-Origin[^\n]{0,40}(req\.headers\.origin|request\.headers\[.origin|origin\(\))|set_header\s*\(\s*["']Access-Control-Allow-Origin["']\s*,\s*[^)]{0,20}origin)"#,
                 Severity::High, VulnCategory::CorsMisconfiguration,
-                "CORS — Origin Reflection",
-                "The request Origin is echoed back into Access-Control-Allow-Origin. With credentials this is effectively `*`, letting any site make authenticated cross-origin requests.",
-                "Reflect only origins from an explicit allowlist. Never echo the raw Origin header when credentials are allowed."
+                "CORS — réflexion de l'origine",
+                "L'en-tête Origin de la requête est renvoyé tel quel dans Access-Control-Allow-Origin. Avec les identifiants, cela équivaut à `*` : n'importe quel site peut faire des requêtes cross-origin authentifiées.",
+                "Ne renvoyez que les origines d'une liste blanche explicite. Ne renvoyez jamais l'en-tête Origin brut quand les identifiants sont autorisés."
             ),
             // ── Sensitive data in URL query string ────────────────────────
             r!(
                 r#"(?i)(https?://[^\s"'`]{0,120}[?&](password|passwd|pwd|token|api[_-]?key|secret|access[_-]?token|session)=)"#,
                 Severity::Medium, VulnCategory::SensitiveDataExposure,
-                "Sensitive Data in URL Query String",
-                "A credential/token is passed in a URL query string. URLs are logged (server logs, proxies, browser history, Referer header) — the secret leaks into all of them.",
-                "Send secrets in the request body or an Authorization header, never in the query string."
+                "Donnée sensible dans la chaîne de requête de l'URL",
+                "Un identifiant / jeton est passé dans la chaîne de requête d'une URL. Les URL sont journalisées (journaux serveur, proxys, historique du navigateur, en-tête Referer) — le secret fuit dans chacun d'eux.",
+                "Envoyez les secrets dans le corps de la requête ou un en-tête Authorization, jamais dans la chaîne de requête."
             ),
             // ── Cloud metadata endpoint access ────────────────────────────
             r!(
                 r#"(?i)(169\.254\.169\.254|metadata\.google\.internal|metadata/instance|/latest/meta-data/|/computeMetadata/)"#,
                 Severity::Medium, VulnCategory::InsecureConfiguration,
-                "Cloud Metadata Endpoint Access",
-                "Access to the cloud instance metadata service (169.254.169.254 / metadata.google.internal). If reachable via SSRF it leaks temporary cloud credentials and IAM tokens.",
-                "Require IMDSv2 (hop limit + session token). Never proxy user-controlled URLs to the metadata IP; block 169.254.169.254 egress from app code."
+                "Accès au point de métadonnées cloud",
+                "Accès au service de métadonnées de l'instance cloud (169.254.169.254 / metadata.google.internal). S'il est joignable via une SSRF, il laisse fuiter des identifiants cloud temporaires et des jetons IAM.",
+                "Exigez IMDSv2 (limite de sauts + jeton de session). Ne relayez jamais d'URL contrôlée par l'utilisateur vers l'IP des métadonnées ; bloquez la sortie vers 169.254.169.254 depuis le code applicatif."
             ),
             // ── Weak randomness for security value ────────────────────────
             r!(
                 r#"(?i)(Math\.random\(\)|new\s+Random\(\))[^;\n]{0,40}(token|secret|otp|nonce|session|reset|salt|password|api[_-]?key)"#,
                 Severity::High, VulnCategory::WeakCrypto,
-                "Weak Randomness for Security Value",
-                "A security-sensitive value (token, OTP, session id, salt…) is derived from a non-cryptographic RNG (Math.random / java.util.Random). Output is predictable and can be brute-forced.",
-                "Use a CSPRNG: crypto.randomBytes / crypto.getRandomValues (JS), secrets (Python), SecureRandom (Java), rand::rngs::OsRng (Rust)."
+                "Aléa faible pour une valeur de sécurité",
+                "Une valeur sensible (jeton, OTP, identifiant de session, sel…) est dérivée d'un générateur aléatoire non cryptographique (Math.random / java.util.Random). Le résultat est prévisible et peut être deviné par force brute.",
+                "Utilisez un CSPRNG : crypto.randomBytes / crypto.getRandomValues (JS), secrets (Python), SecureRandom (Java), rand::rngs::OsRng (Rust)."
             ),
         ]
     });

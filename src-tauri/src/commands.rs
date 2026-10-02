@@ -74,13 +74,13 @@ pub async fn request_ai_fix(
     // Clone vulnerability BEFORE any await so MutexGuard is not held across await points.
     let vuln = {
         let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-        let scan_result = scan.as_ref().ok_or("No active scan result")?;
+        let scan_result = scan.as_ref().ok_or("Aucun résultat d'analyse en cours")?;
         scan_result
             .vulnerabilities
             .iter()
             .find(|v| v.id == req.vulnerability_id)
             .cloned()
-            .ok_or_else(|| format!("Vulnerability {} not found", req.vulnerability_id))?
+            .ok_or_else(|| format!("Vulnérabilité {} introuvable", req.vulnerability_id))?
     }; // MutexGuard dropped here
 
     let key_name = match &req.provider {
@@ -90,7 +90,7 @@ pub async fn request_ai_fix(
     };
 
     let api_key = keystore::load_key(key_name)?
-        .ok_or_else(|| format!("No API key configured for {key_name}"))?;
+        .ok_or_else(|| format!("Aucune clé API configurée pour {key_name}"))?;
 
     let endpoint = if matches!(req.provider, LlmProvider::Antigravity) {
         keystore::load_antigravity_endpoint()
@@ -107,13 +107,13 @@ pub fn build_clipboard_prompt(
     state:   State<'_, AppState>,
 ) -> Result<String, String> {
     let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-    let scan_result = scan.as_ref().ok_or("No active scan result")?;
+    let scan_result = scan.as_ref().ok_or("Aucun résultat d'analyse en cours")?;
 
     let vuln = scan_result
         .vulnerabilities
         .iter()
         .find(|v| v.id == vuln_id)
-        .ok_or_else(|| format!("Vulnerability {vuln_id} not found"))?;
+        .ok_or_else(|| format!("Vulnérabilité {vuln_id} introuvable"))?;
 
     Ok(llm::build_clipboard_prompt(vuln))
 }
@@ -123,35 +123,35 @@ pub fn build_clipboard_prompt(
 #[tauri::command]
 pub fn export_json(state: State<'_, AppState>) -> Result<String, String> {
     let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-    let result = scan.as_ref().ok_or("No scan result to export")?;
+    let result = scan.as_ref().ok_or("Aucun résultat d'analyse à exporter")?;
     export::to_json(result)
 }
 
 #[tauri::command]
 pub fn export_csv(state: State<'_, AppState>) -> Result<String, String> {
     let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-    let result = scan.as_ref().ok_or("No scan result to export")?;
+    let result = scan.as_ref().ok_or("Aucun résultat d'analyse à exporter")?;
     Ok(export::to_csv(result))
 }
 
 #[tauri::command]
 pub fn export_markdown(state: State<'_, AppState>) -> Result<String, String> {
     let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-    let result = scan.as_ref().ok_or("No scan result to export")?;
+    let result = scan.as_ref().ok_or("Aucun résultat d'analyse à exporter")?;
     Ok(export::to_markdown(result))
 }
 
 #[tauri::command]
 pub fn export_txt(state: State<'_, AppState>) -> Result<String, String> {
     let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-    let result = scan.as_ref().ok_or("No scan result to export")?;
+    let result = scan.as_ref().ok_or("Aucun résultat d'analyse à exporter")?;
     Ok(export::to_txt(result))
 }
 
 #[tauri::command]
 pub fn export_html(state: State<'_, AppState>) -> Result<String, String> {
     let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-    let result = scan.as_ref().ok_or("No scan result to export")?;
+    let result = scan.as_ref().ok_or("Aucun résultat d'analyse à exporter")?;
     Ok(export::to_html(result))
 }
 
@@ -216,7 +216,7 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
 
     let content = {
         let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
-        let result = scan.as_ref().ok_or("No scan result to export")?;
+        let result = scan.as_ref().ok_or("Aucun résultat d'analyse à exporter")?;
         match format.as_str() {
             "json" => export::to_json(result)?.into_bytes(),
             "csv"  => export::to_csv(result).into_bytes(),
@@ -224,7 +224,7 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
             "txt"  => export::to_txt(result).into_bytes(),
             "html" => export::to_html(result).into_bytes(),
             "pdf"  => export::to_pdf(result),
-            _      => return Err(format!("Unknown format: {format}")),
+            _      => return Err(format!("Format inconnu : {format}")),
         }
     };
     // FIX TOCTOU — écrire sur le chemin canonicalisé, pas sur &path (chemin original)
@@ -236,7 +236,7 @@ pub fn save_report_to_file(format: String, path: String, state: State<'_, AppSta
 #[tauri::command]
 pub fn save_api_key(provider: String, key: String) -> Result<(), String> {
     if key.trim().is_empty() {
-        return Err("API key cannot be empty".to_string());
+        return Err("La clé API ne peut pas être vide".to_string());
     }
     // FIX VULN 5 — Cap longueur clé (limite raisonnable pour toute clé API)
     if key.len() > 4096 {
@@ -244,7 +244,7 @@ pub fn save_api_key(provider: String, key: String) -> Result<(), String> {
     }
     // Whitelist providers autorisés (LLM + bases de réputation)
     if !keystore::KEY_NAMES.contains(&provider.as_str()) {
-        return Err(format!("Provider inconnu: {provider}"));
+        return Err(format!("Fournisseur inconnu : {provider}"));
     }
     keystore::save_key(&provider, key.trim())
 }
@@ -253,7 +253,7 @@ pub fn save_api_key(provider: String, key: String) -> Result<(), String> {
 pub fn delete_api_key(provider: String) -> Result<(), String> {
     // FIX VULN 6 — Whitelist providers avant d'appeler le keystore
     if !keystore::KEY_NAMES.contains(&provider.as_str()) {
-        return Err("Provider inconnu".to_string());
+        return Err("Fournisseur inconnu".to_string());
     }
     keystore::delete_key(&provider)
 }
@@ -277,7 +277,7 @@ pub fn save_antigravity_endpoint(endpoint: String) -> Result<(), String> {
     }
     // FIX M7 — SSRF: enforce HTTPS and block private/local addresses
     if !endpoint.starts_with("https://") {
-        return Err("L'endpoint doit utiliser HTTPS (https://)".to_string());
+        return Err("L'adresse du service doit utiliser HTTPS (https://)".to_string());
     }
 
     let url = url::Url::parse(&endpoint)
@@ -338,7 +338,7 @@ pub async fn batch_ai_fix(
     let vulns = {
         let scan = state.current_scan.lock().unwrap_or_else(|e| e.into_inner());
         scan.as_ref()
-            .ok_or("No active scan result")?
+            .ok_or("Aucun résultat d'analyse en cours")?
             .vulnerabilities
             .clone()
     };
@@ -350,7 +350,7 @@ pub async fn batch_ai_fix(
         LlmProvider::Antigravity => "antigravity",
     };
     let api_key = keystore::load_key(key_name)?
-        .ok_or_else(|| format!("No API key configured for {key_name}"))?;
+        .ok_or_else(|| format!("Aucune clé API configurée pour {key_name}"))?;
     let ag_endpoint = if matches!(provider, LlmProvider::Antigravity) {
         keystore::load_antigravity_endpoint()
     } else {

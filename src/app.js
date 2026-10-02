@@ -131,13 +131,13 @@ function setupDragDrop() {
 
 function setupButtons() {
   $('btnPickFolder').addEventListener('click', async () => {
-    const dir = await open({ directory: true, multiple: false, title: 'Select folder to scan' });
+    const dir = await open({ directory: true, multiple: false, title: 'Choisir le dossier à analyser' });
     if (dir) startScan(dir);
   });
 
   $('btnCancel').addEventListener('click', async () => {
     await invoke('cancel_scan');
-    toast('Scan cancelled');
+    toast('Analyse annulée');
   });
 
   $('btnNewScan').addEventListener('click', resetToScanZone);
@@ -219,7 +219,7 @@ async function startScan(path) {
     showResults();
   } catch (err) {
     stopTimer();
-    toast(`Scan error: ${err}`, true);
+    toast(`Erreur d'analyse : ${err}`, true);
     resetToScanZone();
   } finally {
     if (progressUnlisten) { progressUnlisten(); progressUnlisten = null; }
@@ -287,7 +287,7 @@ function resetToScanZone() {
   $('progressPct').textContent = '0%';
   $('elapsedTime').textContent = '00:00:00';
   progressCount.textContent    = '0 / 0';
-  progressFile.textContent  = 'Initializing…';
+  progressFile.textContent  = 'Initialisation…';
   vulnList.innerHTML = '';
   showDetailEmpty();
 }
@@ -309,7 +309,7 @@ function renderVulnList() {
   vulnList.innerHTML = '';
 
   if (vulns.length === 0) {
-    vulnList.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center;font-size:13px;">No findings match filters</div>`;
+    vulnList.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center;font-size:13px;">Aucun résultat ne correspond aux filtres</div>`;
     return;
   }
 
@@ -325,7 +325,7 @@ function renderVulnList() {
     el.innerHTML = `
       <div class="vuln-item-header">
         <span class="vuln-item-title">${escHtml(v.title)}</span>
-        <span class="sev-badge ${v.severity}">${v.severity.toUpperCase()}</span>
+        <span class="sev-badge ${v.severity}">${sevLabel(v.severity)}</span>
       </div>
       <div class="vuln-item-file">${escHtml(fileShort)}${line}</div>
       <div class="vuln-item-meta">${escHtml(v.cwe_id || '')}</div>
@@ -348,15 +348,15 @@ function selectVuln(v) {
 
   // Populate detail
   const badge = $('detailSeverity');
-  badge.textContent = v.severity.toUpperCase();
+  badge.textContent = sevLabel(v.severity);
   badge.className   = `detail-badge sev-badge ${v.severity}`;
 
   $('detailTitle').textContent = v.title;
   $('detailFile').textContent  = v.file_path;
-  $('detailLine').textContent  = v.line_number ? `Line ${v.line_number}` : '';
+  $('detailLine').textContent  = v.line_number ? `Ligne ${v.line_number}` : '';
   $('detailCwe').textContent   = v.cwe_id || '';
   $('detailDesc').textContent  = v.description;
-  $('detailSnippet').textContent = v.code_snippet || v.matched_pattern || '(no code context)';
+  $('detailSnippet').textContent = v.code_snippet || v.matched_pattern || '(aucun extrait de code)';
   $('detailFix').textContent   = v.remediation;
 
   // Probabilité réel / faux positif, explications et calcul
@@ -380,7 +380,7 @@ function showDetailEmpty() {
 
 // ─── AI Fix ───────────────────────────────────────────────────────────────────
 async function requestAiFix() {
-  if (!activeVulnId) return toast('Select a vulnerability first');
+  if (!activeVulnId) return toast("Sélectionnez d'abord une vulnérabilité");
 
   const provider = $('aiProvider').value;
   $('aiResult').classList.add('hidden');
@@ -393,10 +393,10 @@ async function requestAiFix() {
     });
 
     $('aiExplanation').textContent = result.explanation;
-    $('aiFixCode').textContent     = result.fixed_code || '(no code generated)';
+    $('aiFixCode').textContent     = result.fixed_code || '(aucun code généré)';
     $('aiResult').classList.remove('hidden');
   } catch (err) {
-    toast(`AI error: ${err}`, true);
+    toast(`Erreur IA : ${err}`, true);
   } finally {
     $('aiLoading').classList.add('hidden');
     $('btnGetFix').disabled = false;
@@ -404,24 +404,24 @@ async function requestAiFix() {
 }
 
 async function copyAiPrompt() {
-  if (!activeVulnId) return toast('Select a vulnerability first');
+  if (!activeVulnId) return toast("Sélectionnez d'abord une vulnérabilité");
   try {
     const prompt = await invoke('build_clipboard_prompt', { vulnId: activeVulnId });
     await navigator.clipboard.writeText(prompt);
-    toast('Prompt copied to clipboard!');
+    toast('Prompt copié dans le presse-papiers');
   } catch (err) {
-    toast(`Copy error: ${err}`, true);
+    toast(`Erreur de copie : ${err}`, true);
   }
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 const EXPORT_META = {
-  json: { cmd: 'export_json',     ext: 'json', label: 'JSON',     filter: 'JSON Files'     },
-  csv:  { cmd: 'export_csv',      ext: 'csv',  label: 'CSV',      filter: 'CSV Files'      },
-  md:   { cmd: 'export_markdown', ext: 'md',   label: 'Markdown', filter: 'Markdown Files' },
-  txt:  { cmd: 'export_txt',      ext: 'txt',  label: 'Text',     filter: 'Text Files'     },
-  html: { cmd: 'export_html',     ext: 'html', label: 'HTML',     filter: 'HTML Files'     },
-  pdf:  { ext: 'pdf', label: 'PDF', filter: 'PDF Files' },
+  json: { cmd: 'export_json',     ext: 'json', label: 'JSON',     filter: 'Fichiers JSON'     },
+  csv:  { cmd: 'export_csv',      ext: 'csv',  label: 'CSV',      filter: 'Fichiers CSV'      },
+  md:   { cmd: 'export_markdown', ext: 'md',   label: 'Markdown', filter: 'Fichiers Markdown' },
+  txt:  { cmd: 'export_txt',      ext: 'txt',  label: 'Texte',    filter: 'Fichiers texte'     },
+  html: { cmd: 'export_html',     ext: 'html', label: 'HTML',     filter: 'Fichiers HTML'     },
+  pdf:  { ext: 'pdf', label: 'PDF', filter: 'Fichiers PDF' },
 };
 
 async function exportReport(format) {
@@ -432,7 +432,7 @@ async function exportReport(format) {
   try {
     const date     = new Date().toISOString().slice(0, 10);
     const filePath = await save({
-      defaultPath: `secuscan-report-${date}.${meta.ext}`,
+      defaultPath: `secuscan-rapport-${date}.${meta.ext}`,
       filters: [{ name: meta.filter, extensions: [meta.ext] }],
     });
     if (!filePath) return; // user cancelled
@@ -440,7 +440,7 @@ async function exportReport(format) {
     await invoke('save_report_to_file', { format, path: filePath });
     toast(`Rapport sauvegardé : ${filePath.split(/[\\/]/).pop()}`);
   } catch (err) {
-    toast(`Export error: ${err}`, true);
+    toast(`Erreur d'export : ${err}`, true);
   }
 }
 
@@ -460,14 +460,14 @@ function setupSettings() {
     btn.addEventListener('click', async () => {
       const provider = btn.dataset.provider;
       const input    = $(`key${capitalize(provider)}`);
-      if (!input?.value.trim()) return toast('Enter a key first');
+      if (!input?.value.trim()) return toast("Saisissez d'abord une clé");
       try {
         await invoke('save_api_key', { provider, key: input.value.trim() });
         input.value = '';
-        toast(`${capitalize(provider)} key saved`);
+        toast('Clé enregistrée');
         await refreshKeyStatus();
       } catch (err) {
-        toast(`Save error: ${err}`, true);
+        toast(`Erreur d'enregistrement : ${err}`, true);
       }
     });
   });
@@ -477,10 +477,10 @@ function setupSettings() {
       const provider = btn.dataset.provider;
       try {
         await invoke('delete_api_key', { provider });
-        toast(`${capitalize(provider)} key deleted`);
+        toast('Clé supprimée');
         await refreshKeyStatus();
       } catch (err) {
-        toast(`Delete error: ${err}`, true);
+        toast(`Erreur de suppression : ${err}`, true);
       }
     });
   });
@@ -497,12 +497,12 @@ function setupSettings() {
 
   $('btnSaveEndpoint').addEventListener('click', async () => {
     const ep = $('endpointAntigravity').value.trim();
-    if (!ep) return toast('Enter endpoint URL');
+    if (!ep) return toast("Saisissez l'adresse du service");
     try {
       await invoke('save_antigravity_endpoint', { endpoint: ep });
-      toast('Endpoint saved');
+      toast('Adresse enregistrée');
     } catch (err) {
-      toast(`Error: ${err}`, true);
+      toast(`Erreur : ${err}`, true);
     }
   });
 }
@@ -513,7 +513,7 @@ async function refreshKeyStatus() {
     for (const provider of ['claude', 'gemini', 'antigravity']) {
       const el = $(`status${capitalize(provider)}`);
       if (el) {
-        el.textContent  = status[provider] ? '✓ Configured' : '✗ Not set';
+        el.textContent  = status[provider] ? '✓ Configurée' : '✗ Non configurée';
         el.className    = `key-status ${status[provider] ? 'ok' : 'nok'}`;
       }
     }
@@ -535,6 +535,12 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Libellés français des gravités ; la valeur interne (critical, high...) ne change pas.
+const SEV_LABELS = { critical: 'CRITIQUE', high: 'ÉLEVÉE', medium: 'MOYENNE', low: 'FAIBLE', info: 'INFO' };
+function sevLabel(sev) {
+  return SEV_LABELS[sev] || String(sev).toUpperCase();
+}
+
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -554,7 +560,7 @@ function toast(msg, isError = false) {
 
 function openBatchModal() {
   if (!currentScan || !currentScan.vulnerabilities.length) {
-    return toast('Lance un scan d\'abord', true);
+    return toast("Lancez d'abord une analyse", true);
   }
   // Reset state
   batchPatches = [];
@@ -593,7 +599,7 @@ async function runBatchFix() {
     $('batchCurrentFile').textContent = p.current_file;
     const isErr = p.status.startsWith('error');
     $('batchStatusLabel').textContent =
-      isErr ? `⚠️ ${p.file_idx}/${p.total_files} — ${p.status}`
+      isErr ? `⚠️ ${p.file_idx}/${p.total_files} — ${p.status.replace(/^error:\s*/, "erreur : ")}`
             : `Fichier ${p.file_idx} / ${p.total_files}`;
   });
 
@@ -607,7 +613,7 @@ async function runBatchFix() {
     $('batchProgress').classList.add('hidden');
     $('batchConfig').classList.remove('hidden');
     $('btnStartBatch').disabled = false;
-    toast('Batch fix error: ' + err, true);
+    toast('Erreur de correction groupée : ' + err, true);
   }
 }
 
@@ -616,7 +622,7 @@ function renderBatchResults() {
   list.innerHTML = '';
 
   if (!batchPatches.length) {
-    list.innerHTML = '<p style="color:var(--text-muted);padding:12px">Aucun patch généré.</p>';
+    list.innerHTML = '<p style="color:var(--text-muted);padding:12px">Aucun correctif généré.</p>';
   }
 
   batchPatches.forEach((patch, idx) => {
@@ -634,7 +640,7 @@ function renderBatchResults() {
       </div>
       <p class="patch-summary">${escHtml(patch.summary)}</p>
       <div class="patch-actions">
-        <button class="btn-secondary patch-btn-preview" data-idx="${idx}">👁 Aperçu diff</button>
+        <button class="btn-secondary patch-btn-preview" data-idx="${idx}">👁 Voir les différences</button>
         ${!patch.applied ? `<button class="btn-ai patch-btn-apply" data-idx="${idx}">✅ Appliquer</button>` : ''}
       </div>
       <pre class="patch-diff hidden" id="diff-${idx}"></pre>
@@ -648,7 +654,7 @@ function renderBatchResults() {
   });
 
   $('batchSummary').innerHTML =
-    `<strong>${batchPatches.length}</strong> fichier(s) analysé(s) — cliquez sur un patch pour voir le diff avant d'appliquer.`;
+    `<strong>${batchPatches.length}</strong> fichier(s) analysé(s) — cliquez sur un correctif pour voir les différences avant de l'appliquer.`;
   $('batchResults').classList.remove('hidden');
 }
 
@@ -670,7 +676,7 @@ function toggleDiff(idx, patch) {
         if (p) diffHtml += `<span class="diff-add">+${escHtml(p)}\n</span>`;
       }
     }
-    pre.innerHTML = diffHtml || '(identical)';
+    pre.innerHTML = diffHtml || '(identique)';
     pre.classList.remove('hidden');
   } else {
     pre.classList.add('hidden');
@@ -683,10 +689,10 @@ async function applySinglePatch(idx) {
   try {
     await invoke('apply_patch', { filePath: patch.file_path, patchedContent: patch.patched_content });
     batchPatches[idx].applied = true;
-    toast(`Patch appliqué : ${patch.file_path.split(/[\\/]/).pop()}`);
+    toast(`Correctif appliqué : ${patch.file_path.split(/[\\/]/).pop()}`);
     renderBatchResults();
   } catch (err) {
-    toast('Erreur application patch: ' + err, true);
+    toast("Erreur d'application du correctif : " + err, true);
   }
 }
 
@@ -703,7 +709,7 @@ async function applyAllPatches() {
       }
     }
   }
-  toast(`${applied} patch(es) appliqué(s) sur disque`);
+  toast(`${applied} correctif(s) appliqué(s) sur le disque`);
   renderBatchResults();
 }
 

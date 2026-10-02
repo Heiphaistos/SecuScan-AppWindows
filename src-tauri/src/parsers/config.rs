@@ -37,263 +37,263 @@ fn get_rules() -> &'static Vec<Rule> {
             r!(
                 r"AKIA[0-9A-Z]{16}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "AWS Access Key ID",
-                "AWS IAM Access Key found in config/source. Full account compromise if exposed.",
-                "Rotate key immediately via AWS IAM console. Store in AWS Secrets Manager or env var."
+                "Identifiant de clé d'accès AWS",
+                "Clé d'accès AWS IAM trouvée dans la configuration ou le code source. Compromission complète du compte en cas d'exposition.",
+                "Faites tourner la clé immédiatement depuis la console AWS IAM. Stockez-la dans AWS Secrets Manager ou une variable d'environnement."
             ),
             r!(
                 r#"(?i)aws[_-]?secret[_-]?access[_-]?key\s*[=:]\s*["']?[A-Za-z0-9/+=]{40}["']?"#,
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "AWS Secret Access Key",
-                "AWS Secret Access Key found. Combined with key ID gives full API access.",
-                "Rotate immediately. Use IAM roles / instance profiles instead of static keys."
+                "Clé d'accès secrète AWS",
+                "Clé d'accès secrète AWS trouvée. Associée à l'identifiant de clé, elle donne un accès complet à l'API.",
+                "Faites-la tourner immédiatement. Utilisez des rôles IAM ou des profils d'instance plutôt que des clés statiques."
             ),
             // ── OpenAI ───────────────────────────────────────────────────
             r!(
                 r"sk-[A-Za-z0-9]{48,}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "OpenAI API Key",
-                "OpenAI secret key found. Allows billing abuse and model access.",
-                "Rotate at platform.openai.com. Store in environment variable."
+                "Clé API OpenAI",
+                "Clé secrète OpenAI trouvée. Permet d'abuser de la facturation et d'accéder aux modèles.",
+                "Faites-la tourner sur platform.openai.com. Stockez-la dans une variable d'environnement."
             ),
             // ── Google ───────────────────────────────────────────────────
             r!(
                 r"AIza[0-9A-Za-z_\-]{35}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Google API Key",
-                "Google Cloud / Firebase API key found.",
-                "Restrict key in GCP console. Rotate and store in Secret Manager."
+                "Clé API Google",
+                "Clé API Google Cloud / Firebase trouvée.",
+                "Restreignez la clé dans la console GCP. Faites-la tourner et stockez-la dans Secret Manager."
             ),
             // ── Anthropic ────────────────────────────────────────────────
             r!(
                 r"sk-ant-api[0-9A-Za-z_\-]{20,}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Anthropic API Key",
-                "Anthropic Claude API key found in file.",
-                "Rotate at console.anthropic.com. Use environment variable ANTHROPIC_API_KEY."
+                "Clé API Anthropic",
+                "Clé API Anthropic Claude trouvée dans le fichier.",
+                "Faites-la tourner sur console.anthropic.com. Utilisez la variable d'environnement ANTHROPIC_API_KEY."
             ),
             // ── Stripe ───────────────────────────────────────────────────
             r!(
                 r"(sk|pk)_(test|live)_[A-Za-z0-9]{24,}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Stripe Secret/Publishable Key",
-                "Stripe API key found. sk_live → full account takeover.",
-                "Rotate at dashboard.stripe.com. sk_live keys must stay server-side only."
+                "Clé secrète/publiable Stripe",
+                "Clé API Stripe trouvée. sk_live → prise de contrôle complète du compte.",
+                "Faites-la tourner sur dashboard.stripe.com. Les clés sk_live doivent rester uniquement côté serveur."
             ),
             // ── GitHub ───────────────────────────────────────────────────
             r!(
                 r"(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[A-Za-z0-9]{20,}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "GitHub Personal Access Token",
-                "GitHub PAT found. Allows repo access at the PAT's permission level.",
-                "Revoke at github.com/settings/tokens. Use GitHub Actions secrets for CI."
+                "Jeton d'accès personnel GitHub",
+                "PAT GitHub trouvé. Donne accès aux dépôts au niveau de permissions du PAT.",
+                "Révoquez-le sur github.com/settings/tokens. Utilisez les secrets GitHub Actions pour la CI."
             ),
             // ── Slack ────────────────────────────────────────────────────
             r!(
                 r"https://hooks\.slack\.com/services/[A-Z0-9]{9,}/[A-Z0-9]{9,}/[A-Za-z0-9]{24,}",
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Slack Webhook URL",
-                "Slack incoming webhook URL exposed. Allows sending messages to the channel.",
-                "Rotate webhook in Slack app settings. Remove from version-controlled files."
+                "URL de webhook Slack",
+                "URL de webhook entrant Slack exposée. Permet d'envoyer des messages dans le salon.",
+                "Faites tourner le webhook dans les paramètres de l'application Slack. Retirez-le des fichiers versionnés."
             ),
             // ── JWT ──────────────────────────────────────────────────────
             r!(
                 r"eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}",
                 Severity::High, VulnCategory::JwtExposed,
-                "JWT Token Exposed",
-                "JSON Web Token found in config/backup. If valid, attacker can impersonate the user.",
-                "Invalidate the token server-side. Never commit tokens. Ensure short expiry."
+                "Jeton JWT exposé",
+                "JSON Web Token trouvé dans une configuration ou une sauvegarde. S'il est valide, un attaquant peut usurper l'identité de l'utilisateur.",
+                "Invalidez le jeton côté serveur. Ne commitez jamais de jetons. Imposez une expiration courte."
             ),
             // ── Passwords ────────────────────────────────────────────────
             r!(
                 r#"(?i)(password|passwd|pwd|db_pass|database_password|secret_key)\s*[=:]\s*["']?[^\s"']{8,}["']?"#,
                 Severity::High, VulnCategory::PasswordLeak,
-                "Hardcoded Password in Config",
-                "Plain-text password assignment found in configuration file.",
-                "Move to environment variable or secrets manager. Ensure .env is in .gitignore."
+                "Mot de passe en dur dans la configuration",
+                "Affectation de mot de passe en clair trouvée dans un fichier de configuration.",
+                "Déplacez-le dans une variable d'environnement ou un gestionnaire de secrets. Vérifiez que .env figure dans .gitignore."
             ),
             // ── DB connection strings ─────────────────────────────────────
             r!(
                 r#"(?i)(mongodb(\+srv)?|mysql|postgresql|postgres|mssql|redis|amqp)://[^:]+:[^@]+@[^\s"']+"#,
                 Severity::Critical, VulnCategory::ConnectionStringLeak,
-                "Database Connection String with Credentials",
-                "Connection string including username and password found. Direct DB access possible.",
-                "Remove credentials from connection string. Use environment variables or secrets manager."
+                "Chaîne de connexion à une base de données avec identifiants",
+                "Chaîne de connexion contenant un nom d'utilisateur et un mot de passe trouvée. Accès direct à la base de données possible.",
+                "Retirez les identifiants de la chaîne de connexion. Utilisez des variables d'environnement ou un gestionnaire de secrets."
             ),
             r!(
                 r#"(?i)(Data\s+Source|Server|Initial\s+Catalog)=[^;]+;\s*(User\s+(Id|ID)|uid)=[^;]+;\s*(Password|Pwd)=[^;]+"#,
                 Severity::Critical, VulnCategory::ConnectionStringLeak,
-                "ADO.NET Connection String with Credentials",
-                ".NET/ADO.NET connection string containing username and password.",
-                "Use Windows Authentication or store credentials in Azure Key Vault / environment."
+                "Chaîne de connexion ADO.NET avec identifiants",
+                "Chaîne de connexion .NET/ADO.NET contenant un nom d'utilisateur et un mot de passe.",
+                "Utilisez l'authentification Windows ou stockez les identifiants dans Azure Key Vault ou l'environnement."
             ),
             // ── Private keys ──────────────────────────────────────────────
             r!(
                 r"-----BEGIN (RSA|EC|DSA|OPENSSH|PGP|PRIVATE) (PRIVATE )?KEY-----",
                 Severity::Critical, VulnCategory::HardcodedSecret,
-                "Private Key Material",
-                "SSH or TLS private key found in file. Critical if version-controlled.",
-                "Remove immediately. Rotate all associated keys/certificates."
+                "Clé privée",
+                "Clé privée SSH ou TLS trouvée dans le fichier. Critique si elle est versionnée.",
+                "Retirez-la immédiatement. Faites tourner toutes les clés et tous les certificats associés."
             ),
             // ── Generic signing keys ───────────────────────────────────────
             r!(
                 r#"(?i)(SECRET|PRIVATE|SIGNING)[_-]?KEY\s*[=:]\s*["'][a-zA-Z0-9+/=_\-]{20,}["']"#,
                 Severity::High, VulnCategory::HardcodedSecret,
-                "Hardcoded Signing / Secret Key",
-                "Application-level signing or secret key hardcoded in config.",
-                "Rotate key. Store in environment variable or secrets manager."
+                "Clé de signature / clé secrète en dur",
+                "Clé de signature ou clé secrète applicative codée en dur dans la configuration.",
+                "Faites tourner la clé. Stockez-la dans une variable d'environnement ou un gestionnaire de secrets."
             ),
             // ── Slack bot / app token ─────────────────────────────────────
             r!(
                 r"xox[baprs]-[0-9A-Za-z-]{10,}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Slack Bot / App Token",
-                "Slack token (xoxb/xoxa/xoxp/xoxr/xoxs) exposed. Grants workspace API access.",
-                "Revoke in Slack app settings. Store in a secrets manager."
+                "Jeton de bot / d'application Slack",
+                "Jeton Slack (xoxb/xoxa/xoxp/xoxr/xoxs) exposé. Donne accès à l'API de l'espace de travail.",
+                "Révoquez-le dans les paramètres de l'application Slack. Stockez-le dans un gestionnaire de secrets."
             ),
             // ── GitLab PAT ────────────────────────────────────────────────
             r!(
                 r"glpat-[0-9A-Za-z_\-]{20,}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "GitLab Personal Access Token",
-                "GitLab PAT exposed. Grants repo/API access at the token's scope.",
-                "Revoke at gitlab.com/-/profile/personal_access_tokens. Use CI/CD variables."
+                "Jeton d'accès personnel GitLab",
+                "PAT GitLab exposé. Donne accès aux dépôts et à l'API selon la portée du jeton.",
+                "Révoquez-le sur gitlab.com/-/profile/personal_access_tokens. Utilisez les variables CI/CD."
             ),
             // ── Telegram bot token ────────────────────────────────────────
             r!(
                 r"[0-9]{8,10}:AA[0-9A-Za-z_\-]{32,}",
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Telegram Bot Token",
-                "Telegram bot API token exposed. Allows full control of the bot.",
-                "Revoke via @BotFather (/revoke). Store token in environment variable."
+                "Jeton de bot Telegram",
+                "Jeton d'API de bot Telegram exposé. Permet de contrôler entièrement le bot.",
+                "Révoquez-le via @BotFather (/revoke). Stockez le jeton dans une variable d'environnement."
             ),
             // ── SendGrid ──────────────────────────────────────────────────
             r!(
                 r"SG\.[0-9A-Za-z_\-]{22}\.[0-9A-Za-z_\-]{43}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "SendGrid API Key",
-                "SendGrid API key exposed. Allows sending email as the account (phishing risk).",
-                "Revoke at app.sendgrid.com. Store in secrets manager."
+                "Clé API SendGrid",
+                "Clé API SendGrid exposée. Permet d'envoyer des e-mails au nom du compte (risque d'hameçonnage).",
+                "Révoquez-la sur app.sendgrid.com. Stockez-la dans un gestionnaire de secrets."
             ),
             // ── Twilio ────────────────────────────────────────────────────
             r!(
                 r"SK[0-9a-fA-F]{32}",
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Twilio API Key SID",
-                "Twilio API key SID exposed. Combined with secret, allows SMS/voice billing abuse.",
-                "Rotate at console.twilio.com. Store credentials server-side only."
+                "SID de clé API Twilio",
+                "SID de clé API Twilio exposé. Associé au secret, il permet d'abuser de la facturation SMS/voix.",
+                "Faites-la tourner sur console.twilio.com. Stockez les identifiants uniquement côté serveur."
             ),
             // ── npm token ─────────────────────────────────────────────────
             r!(
                 r"npm_[0-9A-Za-z]{36}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "npm Access Token",
-                "npm automation/publish token exposed. Allows package publish (supply-chain risk).",
-                "Revoke at npmjs.com/settings/tokens. Use CI secrets."
+                "Jeton d'accès npm",
+                "Jeton npm d'automatisation/de publication exposé. Permet de publier des paquets (risque pour la chaîne d'approvisionnement).",
+                "Révoquez-le sur npmjs.com/settings/tokens. Utilisez les secrets de la CI."
             ),
             // ── Google OAuth client secret ────────────────────────────────
             r!(
                 r"[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com",
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Google OAuth Client ID",
-                "Google OAuth client identifier exposed; if paired with client secret, enables token issuance.",
-                "Restrict the client in GCP console. Keep client secret server-side."
+                "Identifiant client OAuth Google",
+                "Identifiant client OAuth Google exposé ; associé au secret client, il permet d'émettre des jetons.",
+                "Restreignez le client dans la console GCP. Gardez le secret client côté serveur."
             ),
             // ── Hardcoded HS256 JWT secret ────────────────────────────────
             r!(
                 r#"(?i)(jwt[_-]?secret|jwt[_-]?key|token[_-]?secret)\s*[=:]\s*["'][^"']{8,}["']"#,
                 Severity::High, VulnCategory::HardcodedSecret,
-                "Hardcoded JWT Signing Secret",
-                "JWT signing secret hardcoded. Anyone with it can forge valid tokens for any user.",
-                "Move to environment variable. Rotate the secret and invalidate existing tokens."
+                "Secret de signature JWT en dur",
+                "Secret de signature JWT codé en dur. Quiconque le possède peut forger des jetons valides pour n'importe quel utilisateur.",
+                "Déplacez-le dans une variable d'environnement. Faites tourner le secret et invalidez les jetons existants."
             ),
             // ── Azure Storage account key ─────────────────────────────────
             r!(
                 r"AccountKey=[A-Za-z0-9+/]{86}==",
                 Severity::Critical, VulnCategory::ConnectionStringLeak,
-                "Azure Storage Account Key",
-                "Azure Storage account key found in a connection string. Grants full blob/queue/table access.",
-                "Rotate the key in the Azure portal. Use SAS tokens or Managed Identity instead."
+                "Clé de compte de stockage Azure",
+                "Clé de compte de stockage Azure trouvée dans une chaîne de connexion. Donne un accès complet aux blobs, files d'attente et tables.",
+                "Faites tourner la clé dans le portail Azure. Utilisez plutôt des jetons SAS ou une identité managée."
             ),
             // ── DigitalOcean PAT ──────────────────────────────────────────
             r!(
                 r"dop_v1_[a-f0-9]{64}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "DigitalOcean Personal Access Token",
-                "DigitalOcean API token exposed. Allows full control of droplets and resources.",
-                "Revoke at cloud.digitalocean.com/account/api. Store in a secrets manager."
+                "Jeton d'accès personnel DigitalOcean",
+                "Jeton d'API DigitalOcean exposé. Permet de contrôler entièrement les droplets et les ressources.",
+                "Révoquez-le sur cloud.digitalocean.com/account/api. Stockez-le dans un gestionnaire de secrets."
             ),
             // ── Mailgun API key ───────────────────────────────────────────
             r!(
                 r"key-[0-9a-zA-Z]{32}",
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Mailgun API Key",
-                "Mailgun API key exposed. Allows sending email as the account (phishing risk).",
-                "Rotate at app.mailgun.com. Store server-side only."
+                "Clé API Mailgun",
+                "Clé API Mailgun exposée. Permet d'envoyer des e-mails au nom du compte (risque d'hameçonnage).",
+                "Faites-la tourner sur app.mailgun.com. Stockez-la uniquement côté serveur."
             ),
             // ── Datadog API key ───────────────────────────────────────────
             r!(
                 r#"(?i)(datadog|dd[_-]?api[_-]?key)["'\s:=]{1,6}[a-f0-9]{32}"#,
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Datadog API Key",
-                "Datadog API key exposed. Allows metric/log ingestion and account data access.",
-                "Rotate at app.datadoghq.com/organization-settings/api-keys. Store in a secrets manager."
+                "Clé API Datadog",
+                "Clé API Datadog exposée. Permet d'injecter des métriques et des journaux et d'accéder aux données du compte.",
+                "Faites-la tourner sur app.datadoghq.com/organization-settings/api-keys. Stockez-la dans un gestionnaire de secrets."
             ),
             // ── Heroku API key ────────────────────────────────────────────
             r!(
                 r#"(?i)heroku[a-z0-9_ \-]{0,15}["'\s:=]{1,4}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#,
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Heroku API Key",
-                "Heroku API key (UUID) exposed. Grants control of apps and add-ons.",
-                "Revoke via `heroku authorizations`. Store in config vars, not source."
+                "Clé API Heroku",
+                "Clé API Heroku (UUID) exposée. Donne le contrôle des applications et des modules complémentaires.",
+                "Révoquez-la via `heroku authorizations`. Stockez-la dans les config vars, pas dans le code source."
             ),
             // ── Cloudflare API token ──────────────────────────────────────
             r!(
                 r#"(?i)(cloudflare|cf[_-]?api[_-]?token)["'\s:=]{1,6}[A-Za-z0-9_\-]{40}"#,
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Cloudflare API Token",
-                "Cloudflare API token exposed. Allows DNS/zone/security changes at the token's scope.",
-                "Revoke at dash.cloudflare.com/profile/api-tokens. Use least-privilege scoped tokens."
+                "Jeton d'API Cloudflare",
+                "Jeton d'API Cloudflare exposé. Permet de modifier DNS, zones et sécurité selon la portée du jeton.",
+                "Révoquez-le sur dash.cloudflare.com/profile/api-tokens. Utilisez des jetons à portée minimale."
             ),
             // ── Discord bot token ─────────────────────────────────────────
             r!(
                 r"[MNO][A-Za-z\d_-]{23}\.[A-Za-z\d_-]{6}\.[A-Za-z\d_-]{27,}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Discord Bot Token",
-                "Discord bot token exposed. Grants full control of the bot and its servers.",
-                "Reset the token in the Discord developer portal. Store in an environment variable."
+                "Jeton de bot Discord",
+                "Jeton de bot Discord exposé. Donne le contrôle complet du bot et de ses serveurs.",
+                "Réinitialisez le jeton dans le portail développeur Discord. Stockez-le dans une variable d'environnement."
             ),
             // ── Shopify access token ──────────────────────────────────────
             r!(
                 r"shpat_[a-fA-F0-9]{32}",
                 Severity::Critical, VulnCategory::ApiKeyLeak,
-                "Shopify Access Token",
-                "Shopify private/admin API access token exposed. Allows store data and order access.",
-                "Revoke in the Shopify admin (Apps). Store server-side only."
+                "Jeton d'accès Shopify",
+                "Jeton d'accès à l'API privée/admin Shopify exposé. Permet d'accéder aux données de la boutique et aux commandes.",
+                "Révoquez-le dans l'administration Shopify (Applications). Stockez-le uniquement côté serveur."
             ),
             // ── Square access token ───────────────────────────────────────
             r!(
                 r"sq0atp-[0-9A-Za-z_\-]{22}",
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Square Access Token",
-                "Square OAuth/production access token exposed. Allows payment and account operations.",
-                "Rotate at developer.squareup.com. Keep tokens server-side."
+                "Jeton d'accès Square",
+                "Jeton d'accès OAuth/production Square exposé. Permet des opérations de paiement et sur le compte.",
+                "Faites-le tourner sur developer.squareup.com. Gardez les jetons côté serveur."
             ),
             // ── Firebase database URL ─────────────────────────────────────
             r!(
                 r"https://[a-z0-9-]+\.firebaseio\.com",
                 Severity::Medium, VulnCategory::SensitiveDataExposure,
-                "Firebase Database URL Exposed",
-                "A Firebase Realtime DB URL is exposed; with lax rules it allows direct data read/write.",
-                "Verify Firebase security rules deny public access. Keep the URL out of shipped client config where possible."
+                "URL de base de données Firebase exposée",
+                "Une URL Firebase Realtime DB est exposée ; avec des règles laxistes, elle permet de lire et d'écrire directement les données.",
+                "Vérifiez que les règles de sécurité Firebase refusent l'accès public. Dans la mesure du possible, ne mettez pas l'URL dans la configuration client distribuée."
             ),
             // ── Algolia admin key ─────────────────────────────────────────
             r!(
                 r#"(?i)algolia[a-z0-9_ -]{0,15}["'\s:=]{1,6}[a-f0-9]{32}"#,
                 Severity::High, VulnCategory::ApiKeyLeak,
-                "Algolia Admin API Key",
-                "Algolia admin key exposed — allows full index read/write/delete.",
-                "Use a search-only key on the client. Rotate the admin key; keep it server-side."
+                "Clé API admin Algolia",
+                "Clé admin Algolia exposée — permet de lire, écrire et supprimer entièrement les index.",
+                "Utilisez une clé de recherche seule côté client. Faites tourner la clé admin ; gardez-la côté serveur."
             ),
         ]
     });
@@ -332,9 +332,9 @@ fn detect_high_entropy(path: &str, text: &str, lines: &[&str]) -> Vec<Vulnerabil
                     path,
                     Severity::Medium,
                     VulnCategory::HighEntropyString,
-                    "High-Entropy String — Potential Secret",
-                    &format!("String with entropy {:.2} (>4.5) found. Possible API key, token, or password.", entropy),
-                    "Verify if this is a secret. If so, move to environment variables or secrets manager.",
+                    "Chaîne à forte entropie — secret potentiel",
+                    &format!("Chaîne d'entropie {:.2} (>4,5) trouvée. Possible clé API, jeton ou mot de passe.", entropy),
+                    "Vérifiez s'il s'agit d'un secret. Si oui, déplacez-le dans des variables d'environnement ou un gestionnaire de secrets.",
                 )
                 .with_line(line_idx + 1)
                 .with_snippet(snippet)
