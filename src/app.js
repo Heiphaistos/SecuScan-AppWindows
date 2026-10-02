@@ -324,7 +324,7 @@ function renderVulnList() {
 
     el.innerHTML = `
       <div class="vuln-item-header">
-        <span class="vuln-item-title">${escHtml(v.title)}</span>
+        <span class="vuln-item-title" title="${escHtml(v.title)}">${escHtml(v.title)}</span>
         <span class="sev-badge ${v.severity}">${sevLabel(v.severity)}</span>
       </div>
       <div class="vuln-item-file">${escHtml(fileShort)}${line}</div>
