@@ -19,7 +19,7 @@ TAURI_SIGNING_PRIVATE_KEY dans l'environnement :
     npx tauri build
 
 Usage :
-    python outils/publier.py
+    VPS_HOST=utilisateur@hote python outils/publier.py
     python outils/publier.py --notes "Export des rapports repare."
 """
 
@@ -35,11 +35,18 @@ from datetime import datetime, timezone
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SORTIE = os.path.join(RACINE, "release")
-VPS = "root@VPS_HOST"
 VPS_DIR = "/var/www/secuscan-maj"
 BASE_URL = "https://secuscan-app.heiphaistos.org/maj"
 PRODUIT = "SecuScan AI"
 PREFIXE = "secuscan"
+
+
+def vps_host():
+    """Cible SSH (utilisateur@hote) lue dans VPS_HOST : jamais versionnee."""
+    h = os.environ.get("VPS_HOST", "").strip()
+    if not h:
+        raise SystemExit("VPS_HOST non defini (ex : export VPS_HOST=utilisateur@hote)")
+    return h
 
 
 def version():
@@ -111,7 +118,7 @@ def sha256(chemin):
     return h.hexdigest()
 
 
-def publier(v, notes):
+def publier(v, notes, vps):
     c = verifier_build(v)
     prep = os.path.join(SORTIE, "_canal")
     if os.path.exists(prep):
@@ -128,9 +135,9 @@ def publier(v, notes):
         f.write(manifeste(v, "%s/%s" % (BASE_URL, nom), lire_sig(c["setup_sig"]), notes))
 
     print("  empreinte de l'installeur : %s..." % sha256(c["setup"])[:16])
-    print("[canal] televersement vers %s:%s" % (VPS, VPS_DIR))
+    print("[canal] televersement vers %s:%s" % (vps, VPS_DIR))
     fichiers = [os.path.join(prep, n) for n in sorted(os.listdir(prep))]
-    executer([outil("scp"), "-o", "BatchMode=yes"] + fichiers + ["%s:%s/" % (VPS, VPS_DIR)])
+    executer([outil("scp"), "-o", "BatchMode=yes"] + fichiers + ["%s:%s/" % (vps, VPS_DIR)])
     print("  -> %s/latest.json" % BASE_URL)
 
 
@@ -143,9 +150,10 @@ def main():
         "vide par defaut, le numero de version y figure deja",
     )
     a = p.parse_args()
+    vps = vps_host()
     v = version()
     print("%s %s" % (PRODUIT, v))
-    publier(v, a.notes)
+    publier(v, a.notes, vps)
     return 0
 
 
